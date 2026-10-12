@@ -42,3 +42,8 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Kept manifest version `0.5.2` as the version source and replaced the card's fixed `0.5.0` cache parameter with the installed manifest version from HA's loader.
 - Added `build_release.py --version X.Y.Z` to update manifest/package versions together; ordinary builds use the manifest version. Added seven tests for archive metadata, synchronization, version tags, invalid versions, and bytecode exclusion.
 - Release workflow verifies that the committed manifest matches the tag, builds with the tag version, validates it, and uploads only the matching archive. HACS requires a published GitHub release to display a release version rather than a branch commit hash; this change does not itself publish a release.
+
+## CI and automatic main releases (12 October 2026)
+
+- Changed CI to run for pushes to any branch, retaining PR/manual triggers.
+- Replaced tag-triggered releases with successful CI completion for main pushes only. Release checks out the exact tested SHA, derives the tag from the manifest, and publishes the matching archive. Existing tags are preserved: a different commit requires a version bump. This supersedes the manual tag-push process above.

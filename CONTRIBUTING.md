@@ -9,12 +9,15 @@ To prepare a new stable release, run `python scripts/build_release.py --version 
 This updates both version fields and embeds the version in the ZIP's manifest.
 
 Create a GitHub repository with these files at the root, push to `main`,
-and enable GitHub Actions. To publish, commit the prepared version changes,
-push the changes, and push a matching annotated tag such as `v0.5.2`.
-The release workflow rejects a tag that differs from the committed manifest,
-builds with that tag's version, runs tests, and attaches only the matching ZIP
-to the GitHub release. HACS displays published release tags; branch installs
-may still display a commit hash. A tag alone does not create a HACS release.
+and enable GitHub Actions. CI runs on pushes to every branch and on pull requests.
+To publish, commit the prepared version changes and push to `main`.
+After all CI jobs succeed for that push, the release workflow checks out the
+tested commit, builds and validates its manifest version, and creates a GitHub
+release and tag such as `v0.5.2` with the matching ZIP. No manual tag push is needed.
+If that version tag already points to another commit, release fails; bump the
+version before the next release. Pull-request and manually triggered CI runs do
+not publish. HACS displays published release tags; branch installs may still
+display a commit hash.
 
 The release ZIP contains the **contents** of `custom_components/spot_trace_history`,
 which is the HACS integration release asset layout.
