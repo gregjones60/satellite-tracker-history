@@ -29,3 +29,15 @@ def test_imported_and_api_records_same_fix_deduplicated(tmp_path):
     store.insert("f", [point("gpx:1")])
     store.insert("f", [point("api:1")])
     assert store.list_devices("f")[0]["count"] == 1
+
+
+def test_device_name_mapping_prefers_latest_record_and_isolates_feeds(tmp_path):
+    store = Store(tmp_path / "gps.sqlite")
+    old = {**point("old", device="old-tracker", time=100), "name": "Vehicle"}
+    recent = {**point("recent", device="new-tracker", time=200), "name": "Vehicle"}
+    unnamed = {**point("unnamed", device="unnamed", time=300), "name": ""}
+    store.insert("feed-a", [recent, old, unnamed])
+    store.insert("feed-b", [{**old, "device": "other-feed-tracker"}])
+
+    assert store.device_names("feed-a") == {"Vehicle": "new-tracker"}
+    assert store.device_names("feed-b") == {"Vehicle": "other-feed-tracker"}

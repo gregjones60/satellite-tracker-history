@@ -2,7 +2,7 @@
 
 Requirements: Python 3.13, Node.js 22.
 
-Run `python -m pip install pytest pytest-asyncio`, then `bash scripts/check.sh`.
+Run `python -m pip install pytest pytest-asyncio voluptuous`, then `bash scripts/check.sh`.
 Run `python scripts/build_release.py` to produce a release ZIP in `dist/`.
 
 Create a GitHub repository with these files at the root, push to `main`,

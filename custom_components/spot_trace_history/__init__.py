@@ -65,10 +65,16 @@ async def async_setup(hass, config):
     return True
 
 
+async def async_reload_entry(hass, entry):
+    """Reload an entry when its options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_setup_entry(hass, entry):
     store=Store(hass.config.path('spot_trace_history.sqlite'))
     coordinator=SpotCoordinator(hass,entry,store)
     hass.data.setdefault(DOMAIN,{})[entry.entry_id]=coordinator
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     await coordinator.async_config_entry_first_refresh()
     await hass.config_entries.async_forward_entry_setups(entry,PLATFORMS)
     if not hass.services.has_service(DOMAIN, 'import_gpx'):
