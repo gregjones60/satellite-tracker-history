@@ -18,7 +18,7 @@ _Reference snapshot: 12 October 2026, based on the latest Device Management UI Z
 - Configure existing feed: Options → Manage devices → select messenger → edit friendly name and tracker enabled flag.
 - Action: `spot_trace_history.import_gpx` with a config-relative GPX filename and `feed_id` or `entry_id` to select the feed.
 - WebSockets: `spot_trace_history/devices` returns devices from all active feed entries, including archived-only ones; `spot_trace_history/track` returns one feed/device's track, capped to 366 days and 50,000 rows.
-- Card URL is served automatically at `/spot_trace_history/spot-trace-history-card.js`; JavaScript registration currently appends `?v=0.5.0` even though manifest/package report `0.5.2` (review version alignment).
+- Card URL is served automatically at `/spot_trace_history/spot-trace-history-card.js`; JavaScript registration appends the installed manifest version through HA's integration loader (currently `?v=0.5.2`).
 
 ## Device options behavior
 
@@ -35,6 +35,7 @@ Options updates trigger a config-entry reload. Disabling the tracker does **not*
 - HACS category: Integration. `hacs.json` declares minimum HA version `2026.09.3`.
 - `manifest.json` includes `config_flow`, `http` dependency, `cloud_polling`, documentation URL and version `0.5.2`.
 - CI: Python 3.13, Node 22, `scripts/check.sh`, and hassfest.
+- Version source: integration `manifest.json`. `scripts/build_release.py --version 0.5.3` updates manifest and package metadata and produces a ZIP with that manifest. Without `--version`, builds use the manifest version and synchronize package metadata. Only stable three-part versions are accepted. The release workflow requires a matching committed `vX.Y.Z` tag, validates the build, and publishes only that version's ZIP. HACS uses published release tags for its displayed release version; branch installs can show a commit hash.
 - Tests cover API, GPX, SQLite, JavaScript card basics, and options-flow steps using real voluptuous schemas and Home Assistant test doubles. Options tests cover feed isolation, selection, defaults, saving without mutating existing options, archive preservation, and empty/missing devices. A strict expected-failure test records the constructor's assignment to modern HA's read-only `config_entry` property. These tests do not validate HA rendering, persistence, reload lifecycle, or tracker suppression.
 
 ## Known constraints

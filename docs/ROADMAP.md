@@ -23,7 +23,7 @@ _Status as of 12 October 2026. Proposed priorities, not committed release dates.
 - [ ] Review editing feed credentials/settings and deleting feed config entries independently of history.
 - [ ] Implement optional historical XML backfill/pagination with API rate and retry considerations.
 - [ ] Design explicit archive backup, retention, prune and export features with safeguards.
-- [ ] Reconcile version labels (`0.5.0` URL/README versus `0.5.2` manifest/package).
+- [x] Reconcile current README/card version with `0.5.2`; synchronize manifest/package versions during release builds and verify release tags. Historical `0.5.0` release notes remain.
 
 ## P3 — Quality and release
 

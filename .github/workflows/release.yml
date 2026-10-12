@@ -16,8 +16,8 @@ jobs:
         with:
           node-version: '22'
       - run: python -m pip install pytest pytest-asyncio voluptuous
-      - run: bash scripts/check.sh
       - name: Verify tag matches manifest
+        id: version
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -26,9 +26,16 @@ jobs:
           from pathlib import Path
           version=json.loads(Path('custom_components/spot_trace_history/manifest.json').read_text())['version']
           assert os.environ['TAG'] == 'v'+version, f"Tag must be v{version}"
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\n')
           PY
-      - run: python scripts/build_release.py
+      - name: Build versioned release
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python scripts/build_release.py --version "$TAG"
+      - run: bash scripts/check.sh
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.zip
+          files: dist/spot_trace_history-${{ steps.version.outputs.version }}.zip
+          fail_on_unmatched_files: true
           generate_release_notes: true

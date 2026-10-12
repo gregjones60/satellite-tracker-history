@@ -36,3 +36,9 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Added ten passing options-step test cases using lightweight HA test doubles, real voluptuous schemas, and a temporary SQLite archive. Tests cover feed isolation, names/enabled defaults, selection metadata, saving while preserving other options and archive rows, and empty/missing-device paths.
 - Added one strict expected-failure test for the known modern HA constructor incompatibility (`self.config_entry` is read-only). Step tests explicitly bypass that constructor so the remaining behavior can be tested. The compatibility test must be updated when the constructor is fixed.
 - Added voluptuous to local and CI test dependency instructions. Real HA UI, option persistence/reloads, and tracker suppression still need validation.
+
+## Release version handling (12 October 2026)
+
+- Kept manifest version `0.5.2` as the version source and replaced the card's fixed `0.5.0` cache parameter with the installed manifest version from HA's loader.
+- Added `build_release.py --version X.Y.Z` to update manifest/package versions together; ordinary builds use the manifest version. Added seven tests for archive metadata, synchronization, version tags, invalid versions, and bytecode exclusion.
+- Release workflow verifies that the committed manifest matches the tag, builds with the tag version, validates it, and uploads only the matching archive. HACS requires a published GitHub release to display a release version rather than a branch commit hash; this change does not itself publish a release.

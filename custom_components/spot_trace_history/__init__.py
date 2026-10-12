@@ -8,6 +8,7 @@ from homeassistant.exceptions import HomeAssistantError
 from .gpx import parse_gpx
 from datetime import timedelta
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import async_get_integration
 from homeassistant.components import frontend, http
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components import websocket_api
@@ -57,7 +58,8 @@ class SpotCoordinator(DataUpdateCoordinator):
 async def async_setup(hass, config):
     """Serve the bundled Lovelace card without requiring /config/www."""
     js_path = Path(__file__).parent / "www" / "spot-trace-history-card.js"
-    url = "/spot_trace_history/spot-trace-history-card.js?v=0.5.0"
+    integration = await async_get_integration(hass, DOMAIN)
+    url = f"/spot_trace_history/spot-trace-history-card.js?v={integration.version}"
     await hass.http.async_register_static_paths([
         StaticPathConfig("/spot_trace_history/spot-trace-history-card.js", str(js_path), False)
     ])
