@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="SPOT Mapping">
+<trk><name>Bluey</name><trkseg>
+<trkpt lat="-37.0" lon="145.0"><time>2026-10-05T01:00:00Z</time></trkpt>
+<trkpt lat="-37.1" lon="145.1"><time>2026-10-05T02:00:00Z</time></trkpt>
+</trkseg></trk>
+<trk><name>Ultimate</name><trkseg>
+<trkpt lat="-36.9" lon="144.9"><time>2026-10-05T01:30:00Z</time></trkpt>
+<trkpt lat="-36.8" lon="144.8"><time>2026-10-05T02:30:00Z</time></trkpt>
+</trkseg></trk>
+</gpx>

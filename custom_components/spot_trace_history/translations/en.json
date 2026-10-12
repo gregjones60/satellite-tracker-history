@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SPOT Trace History",
+        "description": "Enter your SPOT public XML feed ID and optional feed password.",
+        "data": {
+          "feed_id": "Feed ID",
+          "password": "Feed password (optional)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not read the SPOT feed"
+    },
+    "abort": {
+      "already_configured": "This feed is already configured"
+    }
+  }
+}

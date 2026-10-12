@@ -1,0 +1,29 @@
+import_gpx:
+  name: Import historical SPOT GPX
+  description: Import an Activity Report GPX from the Home Assistant configuration directory.
+  fields:
+    filename:
+      name: GPX filename
+      description: Relative path beneath /config, for example spot_exports/ActivityReport.gpx
+      required: true
+      example: spot_exports/ActivityReport.gpx
+      selector:
+        text:
+    feed_id:
+      name: SPOT feed ID
+      description: Required only if multiple feeds are configured.
+      required: false
+      selector:
+        text:
+    entry_id:
+      name: Integration entry ID
+      description: Optional alternative to feed ID when importing into a specific configured feed.
+      required: false
+      selector:
+        text:
+    device_mapping:
+      name: GPX track-to-device mapping
+      description: Optional mapping from GPX track names to messenger IDs for the selected feed.
+      required: false
+      selector:
+        object:
