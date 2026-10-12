@@ -6,6 +6,9 @@ on:
     branches: [main]
 permissions:
   contents: write
+concurrency:
+  group: release-main
+  cancel-in-progress: false
 jobs:
   release:
     if: >-
@@ -18,6 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -25,13 +29,17 @@ jobs:
         with:
           node-version: '22'
       - run: python -m pip install pytest pytest-asyncio voluptuous
-      - name: Read release version
+      - name: Choose next patch version
         id: version
         run: |
           python - <<'PY'
-          import json, os
+          import json, os, subprocess, sys
           from pathlib import Path
-          version=json.loads(Path('custom_components/spot_trace_history/manifest.json').read_text())['version']
+          sys.path.insert(0, 'scripts')
+          from build_release import next_release_version
+          current=json.loads(Path('custom_components/spot_trace_history/manifest.json').read_text())['version']
+          tags=subprocess.check_output(['git', 'tag', '--list'], text=True).splitlines()
+          version=next_release_version(current, tags)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'version={version}\n')
               output.write(f'tag=v{version}\n')
@@ -51,10 +59,21 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: python scripts/build_release.py --version "$TAG"
       - run: bash scripts/check.sh
+      - name: Save release version to main
+        id: commit
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add custom_components/spot_trace_history/manifest.json package.json README.md
+          git commit -m "Release v${RELEASE_VERSION} [skip ci]"
+          git push origin HEAD:main
+          git rev-parse HEAD | sed 's/^/sha=/' >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          target_commitish: ${{ steps.commit.outputs.sha }}
           files: dist/spot_trace_history-${{ steps.version.outputs.version }}.zip
           fail_on_unmatched_files: true
           generate_release_notes: true

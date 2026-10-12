@@ -14,6 +14,20 @@ def normalize_version(value):
     return version
 
 
+def next_release_version(current, tags):
+    """Increment the highest stable version to avoid reusing an existing tag."""
+    versions = [tuple(map(int, normalize_version(current).split(".")))]
+    for tag in tags:
+        if not tag.startswith("v"):
+            continue
+        try:
+            versions.append(tuple(map(int, normalize_version(tag).split("."))))
+        except ValueError:
+            continue
+    major, minor, patch = max(versions)
+    return f"{major}.{minor}.{patch + 1}"
+
+
 def build_release(root, version=None):
     source = root / "custom_components/spot_trace_history"
     manifest_path = source / "manifest.json"

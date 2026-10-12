@@ -57,3 +57,25 @@ def test_invalid_release_version_does_not_change_project(project, invalid):
         builder.build_release(project, invalid)
     assert [path.read_bytes() for path in paths] == before
     assert not (project / "dist").exists()
+
+
+@pytest.mark.parametrize("current,tags,expected", [
+    ("0.5.2", [], "0.5.3"),
+    ("0.5.2", ["v0.5.2"], "0.5.3"),
+    ("0.5.2", ["v0.5.9", "v0.5.10"], "0.5.11"),
+    ("0.6.0", ["v0.5.10"], "0.6.1"),
+    ("0.5.2", ["v1.0.0", "v2.0.0-beta", "other", "vbad"], "1.0.1"),
+])
+def test_next_release_version(current, tags, expected):
+    assert builder.next_release_version(current, tags) == expected
+
+
+def test_successive_releases_increment_version_and_readme(project):
+    current = "0.5.2"
+    tags = ["v0.5.2"]
+    for expected in ["0.5.3", "0.5.4"]:
+        current = builder.next_release_version(current, tags)
+        assert current == expected
+        builder.build_release(project, current)
+        assert f"# SPOT Trace History v{expected}" in (project / "README.md").read_text()
+        tags.append(f"v{current}")
