@@ -1,6 +1,7 @@
 """Config and options flows for SPOT Trace History."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 import voluptuous as vol
@@ -49,14 +50,14 @@ class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Return the options flow."""
-        return SpotOptionsFlow(config_entry)
+        return SpotOptionsFlow()
 
 
 class SpotOptionsFlow(config_entries.OptionsFlow):
     """Manage devices discovered in a SPOT feed."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
+    def __init__(self) -> None:
+        super().__init__()
         self._selected_device: str | None = None
         self._devices: list[dict[str, Any]] = []
 
@@ -64,9 +65,24 @@ class SpotOptionsFlow(config_entries.OptionsFlow):
         coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
         if coordinator is None:
             return []
-        return await self.hass.async_add_executor_job(
+        devices = await self.hass.async_add_executor_job(
             coordinator.store.list_devices, coordinator.feed
         )
+        latest = await self.hass.async_add_executor_job(
+            coordinator.store.latest, coordinator.feed
+        )
+        return [{**device, "lat": latest.get(device["device"], {}).get("lat"),
+                 "lon": latest.get(device["device"], {}).get("lon")} for device in devices]
+
+    @staticmethod
+    def _position_time(timestamp) -> str:
+        """Display archived timestamps with an explicit timezone."""
+        if timestamp is None:
+            return "—"
+        try:
+            return datetime.fromtimestamp(timestamp, timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        except (ValueError, OverflowError, OSError):
+            return "—"
 
     def _device_settings(self) -> dict[str, dict[str, Any]]:
         return dict(self.config_entry.options.get(CONF_DEVICES, {}))
@@ -94,7 +110,7 @@ class SpotOptionsFlow(config_entries.OptionsFlow):
             options.append(
                 selector.SelectOptionDict(
                     value=device_id,
-                    label=f"{display_name} ({state})",
+                    label=f"{display_name} [{device_id}] ({state})",
                 )
             )
 
@@ -155,7 +171,15 @@ class SpotOptionsFlow(config_entries.OptionsFlow):
                 }
             ),
             description_placeholders={
+                "feed_id": self.config_entry.data["feed_id"],
                 "device_id": self._selected_device,
                 "message_count": str(device.get("count", 0)),
+                "first_position": self._position_time(device.get("first")),
+                "latest_position": self._position_time(device.get("last")),
+                "coordinates": (
+                    f"{device['lat']:.6f}, {device['lon']:.6f}"
+                    if device.get("lat") is not None and device.get("lon") is not None
+                    else "—"
+                ),
             },
         )

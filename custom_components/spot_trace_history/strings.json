@@ -34,7 +34,7 @@
       },
       "device": {
         "title": "Device settings",
-        "description": "Messenger ID: {device_id}\n\nStored positions: {message_count}",
+        "description": "Feed ID: {feed_id}\n\nMessenger ID: {device_id}\n\nStored positions: {message_count}\n\nFirst archived position: {first_position}\n\nLatest archived position: {latest_position}\n\nLatest coordinates (latitude, longitude): {coordinates}\n\nDisabling the tracker keeps collecting positions and preserves map history.",
         "data": {
           "name": "Friendly name",
           "enabled": "Enable device tracker"
