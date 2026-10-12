@@ -55,3 +55,9 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Added feed ID, first/latest archived position times in UTC, and latest coordinates to device settings alongside messenger ID and point count. Reads remain feed-specific, including archived GPX tracks. Selector labels now include messenger IDs so duplicate friendly names can be distinguished.
 - Fixed the options-flow constructor to let HA supply its read-only config entry. Tests now exercise the normal constructor; the previous expected failure passes. Synchronized English translations and tested their placeholders against the form.
 - Validation: 37 Python tests and 10 JavaScript tests passed, with no expected failures; compilation, package metadata, and whitespace checks passed. Live HA UI and hassfest execution remain unverified. The release workflow will assign the next version when this feature is pushed to main.
+
+## Combined GPX exports (12 October 2026)
+
+- Added per-track routing for the SPOT web app's combined GPX downloads. Messenger IDs do not encode feed IDs; routing uses already-archived membership or explicit `feed_mapping` (track name to configured feed ID). Unknown/ambiguous destinations fail before any inserts. Explicit top-level feed/entry targeting retains its previous whole-file behavior.
+- The file is parsed once, fixes are remapped and deduplicated per destination, and affected coordinators refresh. Existing import path restrictions are retained. This supersedes the earlier requirement to split multi-feed exports manually.
+- Added 11 importer tests using the combined fixture and real temporary SQLite archives. Validation: 48 Python tests, 10 JavaScript tests, compilation and package checks pass. Live HA action UI and hassfest execution remain unverified.

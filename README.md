@@ -48,7 +48,7 @@ devices:
 
 The card uses XML messenger IDs when present, or GPX track names for archived-only devices. For unambiguous per-feed overrides, use a key in the form `<entry_id>:<messenger_id>`. The card provides a visibility checkbox for each device. New devices appear after their feed is configured and polled, and the card is reloaded.
 
-## Import GPX separately for each feed
+## Import GPX history
 
 Put exports under `/config/spot_exports/` and run **Developer Tools → Actions**:
 
@@ -63,7 +63,77 @@ data:
 
 Repeat with the trailer's GPX and feed ID. The optional `device_mapping` maps the GPX track name to the messenger ID used by the XML feed. Without this mapping, GPX tracks that don't match an XML messenger name may appear as a separate archived-only device. You may use `entry_id` instead of `feed_id` to select the destination.
 
-**Important:** If a single GPX export contains multiple devices, do not import that whole export into both feeds. Export each device separately or split the GPX tracks first. The importer assigns *all* tracks in a file to the selected feed.
+### Combined exports with multiple feeds
+
+You can import the SPOT web app's **download all** GPX export in one action.
+Omit the top-level `feed_id` and `entry_id` to route tracks individually:
+
+```yaml
+action: spot_trace_history.import_gpx
+data:
+  filename: spot_exports/all_devices.gpx
+  device_mapping:
+    Bluey: "YOUR_VEHICLE_MESSENGER_ID"
+    Ultimate: "YOUR_TRAILER_MESSENGER_ID"
+```
+
+The importer matches each messenger ID to the configured feed whose archive
+already contains that device. Feed IDs cannot be calculated from messenger IDs.
+If an ID has not been discovered or appears in multiple feeds, add an explicit
+GPX track-to-feed mapping:
+
+```yaml
+action: spot_trace_history.import_gpx
+data:
+  filename: spot_exports/all_devices.gpx
+  device_mapping:
+    Bluey: "YOUR_VEHICLE_MESSENGER_ID"
+    Ultimate: "YOUR_TRAILER_MESSENGER_ID"
+  feed_mapping:
+    Bluey: "YOUR_VEHICLE_FEED_ID"
+    Ultimate: "YOUR_TRAILER_FEED_ID"
+```
+
+Both feeds must already be configured in Home Assistant. In the action UI, enter
+`feed_mapping` as an object, just like `device_mapping`. Without explicit device
+mapping, unique archived device names can also select a feed. Unknown or
+ambiguous destinations cause an error before any tracks are imported. Each
+track is archived only in its destination feed; repeated imports deduplicate
+existing fixes. Existing explicit `feed_id`/`entry_id` imports still assign the
+whole file to one feed.
+
+### GPX track-to-device mapping format
+
+The **GPX track-to-device mapping** field expects an object with GPX track names
+as keys and SPOT messenger IDs as string values. In the action's YAML editor:
+
+```yaml
+device_mapping:
+  Bluey: "YOUR_VEHICLE_MESSENGER_ID"
+  Ultimate: "YOUR_TRAILER_MESSENGER_ID"
+```
+
+If the mapping field's object editor expects JSON, enter only the mapping:
+
+```json
+{
+  "Bluey": "YOUR_VEHICLE_MESSENGER_ID",
+  "Ultimate": "YOUR_TRAILER_MESSENGER_ID"
+}
+```
+
+Track names must match the GPX `<trk><name>` text, including case; surrounding
+whitespace is trimmed during import. Find messenger IDs under
+**Configure → Manage devices**. The mapping applies only to the selected
+destination feed when `feed_id` or `entry_id` is specified. Omit those fields
+for combined exports and use `feed_mapping` when automatic routing is ambiguous.
+Without an explicit mapping, the importer tries archived device names, then
+uses the GPX track name as the device ID. Friendly-name overrides in Manage
+devices are separate from those archived names.
+
+**Important:** Import a combined export once using per-track routing. Do not
+import the whole file separately into both feeds with top-level `feed_id` values;
+that would assign all its tracks to each selected feed.
 
 ## Limitations
 
