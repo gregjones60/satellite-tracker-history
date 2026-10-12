@@ -43,16 +43,9 @@ jobs:
           TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
         with:
           script: |
-            try {
-              const {data: commit} = await github.rest.repos.getCommit({
-                ...context.repo, ref: process.env.RELEASE_TAG,
-              });
-              if (commit.sha !== process.env.TESTED_SHA) {
-                core.setFailed(`${process.env.RELEASE_TAG} already points to another commit. Bump the manifest version before releasing.`);
-              }
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
+            const checkReleaseTag = require('./.github/scripts/check-release-tag.cjs');
+            await checkReleaseTag({github, context, core,
+              tag: process.env.RELEASE_TAG, testedSha: process.env.TESTED_SHA});
       - name: Build versioned release
         env:
           TAG: ${{ steps.version.outputs.tag }}

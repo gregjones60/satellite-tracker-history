@@ -47,3 +47,4 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 
 - Changed CI to run for pushes to any branch, retaining PR/manual triggers.
 - Replaced tag-triggered releases with successful CI completion for main pushes only. Release checks out the exact tested SHA, derives the tag from the manifest, and publishes the matching archive. Existing tags are preserved: a different commit requires a version bump. This supersedes the manual tag-push process above.
+- Fixed first-release tag detection after GitHub returned 422 for an absent tag at the commits endpoint. The release guard now checks the Git reference endpoint first (missing reference: 404), then resolves existing tags to commits. Seven JavaScript tests cover missing tags, annotated tag resolution, version conflicts, and API error propagation.
