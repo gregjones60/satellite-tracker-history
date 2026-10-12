@@ -6,5 +6,9 @@
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "requirements": [],
-  "codeowners": []
+  "codeowners": [],
+  "dependencies": [
+    "http"
+  ],
+  "documentation": "https://github.com/gregjones60/spot-trace-history"
 }
