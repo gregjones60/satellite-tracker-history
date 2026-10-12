@@ -1,5 +1,9 @@
 {
   "name": "SPOT Trace History",
   "render_readme": true,
-  "homeassistant": "2024.11.0"
+  "dependencies": [
+    "http"
+  ],
+  "documentation": "https://github.com/gregjones60/spot-trace-history",
+  "homeassistant": "2026.09.3"
 }
