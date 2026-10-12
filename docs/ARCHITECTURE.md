@@ -9,14 +9,14 @@ _Reference snapshot: 12 October 2026, based on the latest Device Management UI Z
 3. `__init__.py`: `SpotCoordinator` polls each feed every 300 seconds, inserts points into SQLite and publishes the latest position per messenger. It registers the GPX import service, WebSocket commands, and bundled card JavaScript. Backfill scaffolding exists but is not scheduled; do not describe full pagination as implemented.
 4. `store.py`: SQLite table `positions` keyed by `(feed,id)` with a uniqueness index on `(feed,device,time,lat,lon)`. Provides insert, latest, device listing, names and bounded track queries. DB path: HA config directory `/config/spot_trace_history.sqlite` in a typical deployment.
 5. `device_tracker.py`: creates a `TrackerEntity` for each discovered messenger ID from the coordinator, except IDs disabled through config entry options. Name can be overridden. Tracker unique ID is `feed_id + '_' + messenger_id`.
-6. `gpx.py`: parses GPX 1.1 track exports, optionally maps GPX track names to SPOT messenger IDs, and generates synthetic point IDs. Imports target a selected feed.
+6. `gpx.py`: parses GPX 1.1 track exports and generates synthetic point IDs. `gpx_import.py` plans per-track destinations before writing: explicit single-feed imports remain supported; combined exports resolve mapped messenger IDs or archived names to one configured feed, with optional `feed_mapping` for unknown/ambiguous tracks.
 7. `www/spot-trace-history-card.js`: bundled custom Lovelace map card, queried through WebSockets, with device visibility controls, per-device overrides, and configurable tile URL/attribution. It uses a lightweight SVG/tile renderer rather than Leaflet.
 
 ## Home Assistant surfaces
 
 - Add integration: Settings → Devices & services → Add integration → SPOT Trace History; repeat for independent feeds.
 - Configure existing feed: Options → Manage devices → select messenger → view feed ID, messenger ID, archived count, first/latest timestamps in UTC, and latest coordinates; edit friendly name and tracker enabled flag. Selector labels include messenger IDs to distinguish duplicate names.
-- Action: `spot_trace_history.import_gpx` with a config-relative GPX filename and `feed_id` or `entry_id` to select the feed.
+- Action: `spot_trace_history.import_gpx` with a config-relative GPX filename. `feed_id` or `entry_id` selects one destination for all tracks; omitting them permits combined exports routed by mapped messenger IDs or unique archived names. Optional `feed_mapping` maps track names to configured feed IDs. Every destination is validated before inserts; invalid routing imports nothing. Database/runtime failures during insertion can still leave a partial multi-feed import; rerunning deduplicates fixes.
 - WebSockets: `spot_trace_history/devices` returns devices from all active feed entries, including archived-only ones; `spot_trace_history/track` returns one feed/device's track, capped to 366 days and 50,000 rows.
 - Card URL is served automatically at `/spot_trace_history/spot-trace-history-card.js`; JavaScript registration appends the installed manifest version through HA's integration loader (currently `?v=0.5.2`).
 
