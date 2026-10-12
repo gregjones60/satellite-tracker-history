@@ -1,5 +1,5 @@
 <p>
-  <img src="branding/logo.png" alt="SPOT Trace History">
+  <img src="branding/logo.png" alt="SPOT Trace History" width="250">
 </p>
 
 # SPOT Trace History v0.5.2 — multi-feed prototype + bundled card

@@ -19,6 +19,11 @@ def project(tmp_path):
     source.mkdir(parents=True)
     (source / "manifest.json").write_text(json.dumps({"domain": "spot_trace_history", "version": "0.5.2"}))
     (tmp_path / "package.json").write_text(json.dumps({"version": "0.5.1", "private": True}))
+    (tmp_path / "README.md").write_text(
+        '# SPOT Trace History v0.5.1 — history\n\n'
+        '/spot_trace_history/spot-trace-history-card.js?v=0.5.1\n\n'
+        '## Release notes 0.5.0\nPrevious release.\n'
+    )
     (source / "__init__.py").write_text("# integration\n")
     (source / "__pycache__").mkdir()
     (source / "__pycache__/cached.pyc").write_bytes(b"cached")
@@ -33,6 +38,10 @@ def test_build_synchronizes_metadata_and_archive(project, requested, expected):
     assert package == {"version": expected, "private": True}
     manifest = json.loads((project / "custom_components/spot_trace_history/manifest.json").read_text())
     assert manifest == {"domain": "spot_trace_history", "version": expected}
+    readme = (project / "README.md").read_text()
+    assert f"# SPOT Trace History v{expected} — history" in readme
+    assert f"/spot_trace_history/spot-trace-history-card.js?v={expected}" in readme
+    assert "## Release notes 0.5.0\nPrevious release." in readme
     with zipfile.ZipFile(archive) as z:
         assert json.loads(z.read("manifest.json")) == manifest
         assert "__init__.py" in z.namelist()
@@ -41,7 +50,8 @@ def test_build_synchronizes_metadata_and_archive(project, requested, expected):
 
 @pytest.mark.parametrize("invalid", ["e61df73", "v0.5", "../0.5.2", "01.5.2"])
 def test_invalid_release_version_does_not_change_project(project, invalid):
-    paths = [project / "package.json", project / "custom_components/spot_trace_history/manifest.json"]
+    paths = [project / "package.json", project / "custom_components/spot_trace_history/manifest.json",
+             project / "README.md"]
     before = [path.read_bytes() for path in paths]
     with pytest.raises(ValueError, match="Expected a version"):
         builder.build_release(project, invalid)

@@ -4,9 +4,10 @@ Requirements: Python 3.13, Node.js 22.
 
 Run `python -m pip install pytest pytest-asyncio voluptuous`, then `bash scripts/check.sh`.
 Run `python scripts/build_release.py` to produce a release ZIP in `dist/` using
-the version in `manifest.json`, and synchronize `package.json` to that version.
+the version in `manifest.json`, and synchronize `package.json` and the README
+heading/card URL to that version. Historical release notes retain their versions.
 To prepare a new stable release, run `python scripts/build_release.py --version 0.5.3`.
-This updates both version fields and embeds the version in the ZIP's manifest.
+This updates the version fields and README, and embeds the version in the ZIP's manifest.
 
 Create a GitHub repository with these files at the root, push to `main`,
 and enable GitHub Actions. CI runs on pushes to every branch and on pull requests.
