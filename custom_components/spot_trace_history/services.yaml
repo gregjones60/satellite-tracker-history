@@ -11,7 +11,7 @@ import_gpx:
         text:
     feed_id:
       name: SPOT feed ID
-      description: Required only if multiple feeds are configured.
+      description: Optional destination for all tracks. Omit to route tracks across configured feeds.
       required: false
       selector:
         text:
@@ -23,7 +23,13 @@ import_gpx:
         text:
     device_mapping:
       name: GPX track-to-device mapping
-      description: Optional mapping from GPX track names to messenger IDs for the selected feed.
+      description: Mapping from GPX track names to messenger IDs. Known IDs can automatically select their configured feeds.
+      required: false
+      selector:
+        object:
+    feed_mapping:
+      name: GPX track-to-feed mapping
+      description: Optional mapping from GPX track names to configured feed IDs, for unknown or ambiguous devices.
       required: false
       selector:
         object:

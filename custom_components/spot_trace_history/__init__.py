@@ -5,7 +5,7 @@ from pathlib import Path
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 from homeassistant.exceptions import HomeAssistantError
-from .gpx import parse_gpx
+from .gpx_import import async_import_gpx
 from datetime import timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.loader import async_get_integration
@@ -88,24 +88,18 @@ async def async_setup_entry(hass, entry):
                 raise HomeAssistantError('GPX file must be inside the Home Assistant config directory')
             if not source.is_file():
                 raise HomeAssistantError(f'File not found: {source}')
-            selected = call.data.get('feed_id')
-            selected_entry = call.data.get('entry_id')
             entries = [c for c in hass.data.get(DOMAIN, {}).values()
-                       if isinstance(c, SpotCoordinator) and (selected is None or c.feed == selected)
-                       and (selected_entry is None or c.entry.entry_id == selected_entry)]
-            if len(entries) != 1:
-                raise HomeAssistantError('Specify entry_id or feed_id to select the destination SPOT feed')
-            target = entries[0]
-            names = await hass.async_add_executor_job(target.store.device_names, target.feed)
-            names.update(call.data.get('device_mapping', {}))
-            points = await hass.async_add_executor_job(parse_gpx, source, names)
-            await hass.async_add_executor_job(target.store.insert, target.feed, points)
-            target.async_set_updated_data(await hass.async_add_executor_job(target.store.latest, target.feed))
-            _LOGGER.info('Imported %d GPX positions from %s', len(points), source.name)
+                       if isinstance(c, SpotCoordinator)]
+            try:
+                count = await async_import_gpx(hass, entries, source, call.data)
+            except ValueError as exc:
+                raise HomeAssistantError(str(exc)) from exc
+            _LOGGER.info('Imported %d GPX positions from %s', count, source.name)
         hass.services.async_register(DOMAIN, 'import_gpx', import_gpx,
             schema=vol.Schema({vol.Required('filename'): cv.string,
                                vol.Optional('feed_id'): cv.string,
                                vol.Optional('entry_id'): cv.string,
+                               vol.Optional('feed_mapping'): vol.Schema({cv.string: cv.string}),
                                vol.Optional('device_mapping'): vol.Schema({cv.string: cv.string})}))
     if not hass.data[DOMAIN].get('_ws_registered'):
         websocket_api.async_register_command(hass, ws_devices)
