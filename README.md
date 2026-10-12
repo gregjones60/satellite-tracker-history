@@ -1,3 +1,7 @@
+<p>
+  <img src="branding/logo.png" alt="SPOT Trace History">
+</p>
+
 # SPOT Trace History v0.5.0 — multi-feed prototype + bundled card
 
 Each SPOT XML feed is a **separate integration configuration entry**. To add another tracker, go to **Settings → Devices & services → Add integration → SPOT Trace History**, and enter that device's own feed ID (and password if needed). Repeat for each new device. A feed is not assumed to contain all devices.
