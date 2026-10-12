@@ -21,7 +21,11 @@ class Store:
     def device_names(self, feed):
         with self.connect() as db:
             rows = db.execute('SELECT device, name FROM positions WHERE feed=? ORDER BY time DESC', (feed,)).fetchall()
-        return {name: device for device, name in rows if name}
+        names = {}
+        for device, name in rows:
+            if name:
+                names.setdefault(name, device)
+        return names
 
     def latest(self, feed):
         with self.connect() as db:
