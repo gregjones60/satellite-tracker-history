@@ -5,6 +5,8 @@ constructor test models the modern read-only OptionsFlow.config_entry contract.
 """
 import copy
 import importlib.util
+import json
+import re
 import sys
 import types
 from enum import Enum
@@ -79,7 +81,7 @@ def flow_module(monkeypatch):
 def flow(flow_module, tmp_path):
     from custom_components.spot_trace_history.store import Store
 
-    entry = types.SimpleNamespace(entry_id="entry-a", options={})
+    entry = types.SimpleNamespace(entry_id="entry-a", data={"feed_id": "feed-a"}, options={})
     store = Store(tmp_path / "positions.sqlite")
     for feed, device, name in [("feed-a", "vehicle", "Vehicle"),
                                ("feed-a", "trailer", "Trailer"),
@@ -91,12 +93,9 @@ def flow(flow_module, tmp_path):
     async def execute(fn, *args):
         return fn(*args)
 
-    # Bypass the known constructor bug only for step-level tests. The separate
-    # factory test below exercises the real constructor with the HA contract.
-    result = flow_module.SpotOptionsFlow.__new__(flow_module.SpotOptionsFlow)
+    result = flow_module.SpotConfigFlow.async_get_options_flow(entry)
+    # Model the config-entry binding performed by HA's options-flow manager.
     result._test_entry = entry
-    result._selected_device = None
-    result._devices = []
     result.hass = types.SimpleNamespace(
         data={DOMAIN: {entry.entry_id: coordinator}},
         async_add_executor_job=AsyncMock(side_effect=execute),
@@ -104,12 +103,12 @@ def flow(flow_module, tmp_path):
     return result
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError,
-                   reason="OptionsFlow.config_entry is read-only on supported HA versions")
 def test_options_factory_uses_modern_config_entry_contract(flow_module):
     entry = types.SimpleNamespace(entry_id="entry-a", options={})
     result = flow_module.SpotConfigFlow.async_get_options_flow(entry)
     assert isinstance(result, flow_module.SpotOptionsFlow)
+    assert result._selected_device is None
+    assert result._devices == []
 
 
 @pytest.mark.asyncio
@@ -127,8 +126,8 @@ async def test_device_choices_use_saved_names_and_only_owning_feed(flow):
     assert result["step_id"] == "manage_devices"
     select = next(iter(result["data_schema"].schema.values()))
     assert select.config["options"] == [
-        {"value": "trailer", "label": "Trailer (enabled)"},
-        {"value": "vehicle", "label": "Camper (disabled)"},
+        {"value": "trailer", "label": "Trailer [trailer] (enabled)"},
+        {"value": "vehicle", "label": "Camper [vehicle] (disabled)"},
     ]
     assert result["data_schema"]({"device": "vehicle"}) == {"device": "vehicle"}
     with pytest.raises(vol.Invalid):
@@ -147,7 +146,12 @@ async def test_select_device_shows_defaults_and_metadata(flow, options, defaults
     assert result["type"] == "form"
     assert result["step_id"] == "device"
     assert result["data_schema"]({}) == defaults
-    assert result["description_placeholders"] == {"device_id": "vehicle", "message_count": "1"}
+    assert result["description_placeholders"] == {
+        "feed_id": "feed-a", "device_id": "vehicle", "message_count": "1",
+        "first_position": "1970-01-01 00:01:40 UTC",
+        "latest_position": "1970-01-01 00:01:40 UTC",
+        "coordinates": "-37.000000, 145.000000",
+    }
     with pytest.raises(vol.Invalid):
         result["data_schema"]({"name": "Vehicle", "enabled": "false"})
 
@@ -197,3 +201,47 @@ async def test_device_step_without_selection_returns_to_device_picker(flow):
     result = await flow.async_step_device()
     assert result["type"] == "form"
     assert result["step_id"] == "manage_devices"
+
+
+@pytest.mark.asyncio
+async def test_metadata_uses_latest_archived_fix_from_owning_feed(flow):
+    coordinator = flow.hass.data[DOMAIN]["entry-a"]
+    for feed, time, lat, lon in [("feed-a", 300, -38.5, 146.5), ("feed-b", 500, 1.0, 2.0)]:
+        coordinator.store.insert(feed, [{"id": "recent", "device": "vehicle", "name": "Vehicle",
+                                        "time": time, "lat": lat, "lon": lon, "type": "TRACK"}])
+    result = await flow.async_step_manage_devices({"device": "vehicle"})
+    assert result["description_placeholders"] == {
+        "feed_id": "feed-a", "device_id": "vehicle", "message_count": "2",
+        "first_position": "1970-01-01 00:01:40 UTC",
+        "latest_position": "1970-01-01 00:05:00 UTC",
+        "coordinates": "-38.500000, 146.500000",
+    }
+
+
+@pytest.mark.asyncio
+async def test_duplicate_friendly_names_still_identify_devices(flow):
+    flow.config_entry.options = {"devices": {
+        "vehicle": {"name": "Tracker"}, "trailer": {"name": "Tracker"},
+    }}
+    result = await flow.async_step_manage_devices()
+    selector = next(iter(result["data_schema"].schema.values()))
+    assert [option["label"] for option in selector.config["options"]] == [
+        "Tracker [trailer] (enabled)", "Tracker [vehicle] (enabled)",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_options_translation_placeholders_match_the_form(flow):
+    root = Path(__file__).resolve().parents[1] / "custom_components/spot_trace_history"
+    strings = json.loads((root / "strings.json").read_text())
+    translation = json.loads((root / "translations/en.json").read_text())
+    assert translation == strings
+    result = await flow.async_step_manage_devices({"device": "vehicle"})
+    description = strings["options"]["step"]["device"]["description"]
+    assert set(re.findall(r"\{(\w+)\}", description)) == set(result["description_placeholders"])
+    assert "-37.000000, 145.000000" in description.format(**result["description_placeholders"])
+
+
+@pytest.mark.parametrize("timestamp", [None, 10**100])
+def test_unavailable_or_unrepresentable_time_has_a_display_fallback(flow_module, timestamp):
+    assert flow_module.SpotOptionsFlow._position_time(timestamp) == "—"

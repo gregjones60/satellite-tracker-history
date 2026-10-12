@@ -10,11 +10,12 @@ _Status as of 12 October 2026. Proposed priorities, not committed release dates.
 - [ ] Add automated tests for options flow, missing devices, persisted settings, reload behavior and tracker suppression.
 - [ ] Confirm whether disabled tracker entities should be removed from the entity registry or simply not instantiated; design migration-safe semantics.
 - [ ] Update `translations/en.json` to match `strings.json` options text and validate hassfest.
+  - English translations now match; local placeholder checks pass. Live HA and hassfest validation remain.
 
 ## P1 — Improve device management
 
 - [ ] Decide on archive-safe remove/hide/archive semantics, including confirmation UX. Do **not** delete history by default.
-- [ ] Add clear per-device metadata (feed, messenger ID, latest fix, first/last position, point count).
+- [x] Add clear per-device metadata (feed, messenger ID, latest coordinates, first/latest archived position times in UTC, point count). Implemented and unit-tested; live UI validation remains.
 - [ ] Consider device discovery and naming for archived-only GPX tracks.
 - [ ] Decide whether per-device polling/retention controls are appropriate: polling is currently per feed, not per messenger.
 

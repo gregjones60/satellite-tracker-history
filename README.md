@@ -16,6 +16,19 @@ For HACS, publish this repository with `custom_components/spot_trace_history` at
 
 The card asset is available at `/spot_trace_history/spot-trace-history-card.js?v=0.5.4` once Home Assistant has restarted. The version is read from the installed integration manifest. Home Assistant's frontend loads the bundled script automatically. If you previously registered `/local/spot-trace-history-card.js` manually, remove that old dashboard resource to avoid loading two card versions.
 
+## Manage devices
+
+Open **Settings → Devices & services → SPOT Trace History → Configure → Manage devices**
+for the feed you want to manage. Select a tracker to see its feed ID, messenger
+ID, stored position count, first/latest archived position times (UTC), and
+latest coordinates. These details come from the local archive, including GPX
+imports. They do not guarantee a fresh fix from the tracker.
+
+You can change its friendly name or disable its Home Assistant device tracker.
+Disabling the tracker keeps collecting positions and preserves map history.
+Devices with the same name are distinguished by messenger ID in the selector.
+This UI still needs validation in a live Home Assistant instance.
+
 ## Example card
 
 ```yaml
