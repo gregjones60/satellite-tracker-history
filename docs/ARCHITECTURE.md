@@ -15,7 +15,7 @@ _Reference snapshot: 12 October 2026, based on the latest Device Management UI Z
 ## Home Assistant surfaces
 
 - Add integration: Settings → Devices & services → Add integration → SPOT Trace History; repeat for independent feeds.
-- Configure existing feed: Options → Manage devices → select messenger → edit friendly name and tracker enabled flag.
+- Configure existing feed: Options → Manage devices → select messenger → view feed ID, messenger ID, archived count, first/latest timestamps in UTC, and latest coordinates; edit friendly name and tracker enabled flag. Selector labels include messenger IDs to distinguish duplicate names.
 - Action: `spot_trace_history.import_gpx` with a config-relative GPX filename and `feed_id` or `entry_id` to select the feed.
 - WebSockets: `spot_trace_history/devices` returns devices from all active feed entries, including archived-only ones; `spot_trace_history/track` returns one feed/device's track, capped to 366 days and 50,000 rows.
 - Card URL is served automatically at `/spot_trace_history/spot-trace-history-card.js`; JavaScript registration appends the installed manifest version through HA's integration loader (currently `?v=0.5.2`).
@@ -28,7 +28,7 @@ Options shape:
 {"devices": {"MESSENGER_ID": {"name": "Camper", "enabled": true}}}
 ```
 
-Options updates trigger a config-entry reload. Disabling the tracker does **not** delete historical positions or filter the map card. Device lists depend on already-stored positions, so a new feed with no messages may show no devices.
+Options updates trigger a config-entry reload. The flow uses HA's read-only `config_entry` property, supplied by its options-flow manager. Disabling the tracker does **not** delete historical positions or filter the map card. Device lists depend on already-stored positions, so a new feed with no messages may show no devices. Metadata is loaded through the executor from the selected feed's SQLite archive, including GPX positions; latest means latest archived fix, not necessarily current live location. Friendly names never replace the messenger ID used for settings.
 
 ## Packaging and validation
 
@@ -36,7 +36,7 @@ Options updates trigger a config-entry reload. Disabling the tracker does **not*
 - `manifest.json` includes `config_flow`, `http` dependency, `cloud_polling`, documentation URL and version `0.5.2`.
 - CI: Python 3.13, Node 22, `scripts/check.sh`, and hassfest.
 - Version source: integration `manifest.json`. Local builds accept `--version X.Y.Z` to update manifest, package metadata, and README; otherwise they use the manifest version. Main releases automatically increment the patch of the highest stable version in the manifest or existing tags. After CI succeeds for a main push, release checks out the tested SHA, stamps metadata, builds, reruns checks, commits the version files back to main, and publishes the matching ZIP/tag at that commit. Releases are serialized. The bot push uses `GITHUB_TOKEN` and does not recursively trigger CI. A rejected push (branch protection or newer main commits) stops publication; no force push is used. PR and manual CI runs cannot publish. HACS uses published release tags for its displayed release version; branch installs can show a commit hash.
-- Tests cover API, GPX, SQLite, JavaScript card basics, and options-flow steps using real voluptuous schemas and Home Assistant test doubles. Options tests cover feed isolation, selection, defaults, saving without mutating existing options, archive preservation, and empty/missing devices. A strict expected-failure test records the constructor's assignment to modern HA's read-only `config_entry` property. These tests do not validate HA rendering, persistence, reload lifecycle, or tracker suppression.
+- Tests cover API, GPX, SQLite, JavaScript card basics, and options-flow steps using real voluptuous schemas and Home Assistant test doubles. Options tests use the real constructor and cover feed isolation, selection, defaults, saving without mutating existing options, archive preservation, empty/missing devices, metadata, duplicate names, timestamp fallback, and English translation placeholders. The constructor compatibility regression now passes. These tests do not validate HA rendering, persistence, reload lifecycle, or tracker suppression.
 
 ## Known constraints
 

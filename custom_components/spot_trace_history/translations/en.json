@@ -16,5 +16,34 @@
     "abort": {
       "already_configured": "This feed is already configured"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SPOT Trace History options",
+        "menu_options": {
+          "manage_devices": "Manage devices"
+        }
+      },
+      "manage_devices": {
+        "title": "Manage devices",
+        "description": "Choose a SPOT device to edit.",
+        "data": {
+          "device": "Device"
+        }
+      },
+      "device": {
+        "title": "Device settings",
+        "description": "Feed ID: {feed_id}\n\nMessenger ID: {device_id}\n\nStored positions: {message_count}\n\nFirst archived position: {first_position}\n\nLatest archived position: {latest_position}\n\nLatest coordinates (latitude, longitude): {coordinates}\n\nDisabling the tracker keeps collecting positions and preserves map history.",
+        "data": {
+          "name": "Friendly name",
+          "enabled": "Enable device tracker"
+        }
+      }
+    },
+    "abort": {
+      "no_devices": "No SPOT devices have been discovered for this feed yet.",
+      "device_not_found": "The selected SPOT device could not be found."
+    }
   }
 }
