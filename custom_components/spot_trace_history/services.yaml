@@ -33,3 +33,34 @@ import_gpx:
       required: false
       selector:
         object:
+import_sqlite:
+  name: Import SPOT iOS database
+  description: Import valid location history from a SPOT iOS SQLite export stored in the Home Assistant configuration directory.
+  fields:
+    filename:
+      name: Database filename
+      description: Relative path beneath /config. The source is opened read-only; invalid coordinates are skipped.
+      required: true
+      example: spot_exports/spot_app.db
+      selector:
+        text:
+    feed_id:
+      name: SPOT feed ID
+      description: Optional destination for every device. Omit for per-device routing across configured feeds.
+      selector:
+        text:
+    entry_id:
+      name: Integration entry ID
+      description: Optional alternative to feed ID for selecting one destination entry.
+      selector:
+        text:
+    device_mapping:
+      name: App device-to-messenger mapping
+      description: Map device names in the iOS database to XML messenger IDs. App database IDs are separate from messenger IDs.
+      selector:
+        object:
+    feed_mapping:
+      name: App device-to-feed mapping
+      description: Map device names in the iOS database to configured feed IDs for unknown or ambiguous destinations.
+      selector:
+        object:

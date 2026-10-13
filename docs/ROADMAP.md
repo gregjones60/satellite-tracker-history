@@ -21,6 +21,8 @@ _Status as of 12 October 2026. Proposed priorities, not committed release dates.
 
 ## P2 — Feed management and history
 
+- [x] Import SPOT iOS SQLite history with per-device routing, validation, and deduplication. Tested against the supplied export; live HA action validation remains.
+
 - [ ] Review editing feed credentials/settings and deleting feed config entries independently of history.
 - [ ] Implement optional historical XML backfill/pagination with API rate and retry considerations.
 - [ ] Design explicit archive backup, retention, prune and export features with safeguards.

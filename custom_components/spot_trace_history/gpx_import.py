@@ -28,20 +28,25 @@ def plan_import(points, feeds, device_mapping=None, feed_mapping=None, feed_id=N
                 )]
             if len(candidates) != 1:
                 raise ValueError(
-                    f'Cannot uniquely select a feed for GPX track {name!r}. '
-                    'Provide feed_mapping from this track name to a configured feed ID.'
+                    f'Cannot uniquely select a feed for source device/track {name!r}. '
+                    'Provide feed_mapping from this name to a configured feed ID.'
                 )
             target = candidates[0]
             device = mapped_device or target['names'].get(name, name)
             destinations[name] = (target['entry_id'], device)
         target_id, device = destinations[name]
-        remapped = {**point, 'device': device,
-                    'id': f"gpx:{device}:{point['time']}:{point['lat']:.6f}:{point['lon']:.6f}"}
+        identifier = (point['id'] if point['id'].startswith('ios:') else
+                      f"gpx:{device}:{point['time']}:{point['lat']:.6f}:{point['lon']:.6f}")
+        remapped = {**point, 'device': device, 'id': identifier}
         plan.setdefault(target_id, []).append(remapped)
     return plan
 
 
 async def async_import_gpx(hass, coordinators, source, data):
+    return await async_import_history(hass, coordinators, source, data, parse_gpx)
+
+
+async def async_import_history(hass, coordinators, source, data, parser):
     """Read once, validate all destinations, insert and refresh affected feeds."""
     feeds = []
     by_entry = {}
@@ -52,7 +57,7 @@ async def async_import_gpx(hass, coordinators, source, data):
         latest = await hass.async_add_executor_job(coordinator.store.latest, coordinator.feed)
         feeds.append({'entry_id': entry_id, 'feed_id': coordinator.feed,
                       'names': names, 'devices': set(latest)})
-    points = await hass.async_add_executor_job(parse_gpx, source)
+    points = await hass.async_add_executor_job(parser, source)
     plan = plan_import(points, feeds, data.get('device_mapping'), data.get('feed_mapping'),
                        data.get('feed_id'), data.get('entry_id'))
     for entry_id, positions in plan.items():
