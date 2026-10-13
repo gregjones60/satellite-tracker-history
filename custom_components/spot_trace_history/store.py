@@ -1,5 +1,8 @@
 """Persistent GPS archive."""
 import sqlite3
+from datetime import date
+import re
+from uuid import uuid4
 from pathlib import Path
 
 class Store:
@@ -11,7 +14,33 @@ class Store:
         db.execute('CREATE TABLE IF NOT EXISTS positions (feed TEXT NOT NULL, id TEXT NOT NULL, device TEXT NOT NULL, name TEXT, time INTEGER NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL, type TEXT, PRIMARY KEY(feed,id))')
         db.execute('CREATE INDEX IF NOT EXISTS position_lookup ON positions(feed,device,time)')
         db.execute('CREATE UNIQUE INDEX IF NOT EXISTS position_fix_dedupe ON positions(feed,device,time,lat,lon)')
+        db.execute('CREATE TABLE IF NOT EXISTS trips (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, start_date TEXT NOT NULL, end_date TEXT NOT NULL)')
         return db
+
+    def list_trips(self):
+        with self.connect() as db:
+            rows = db.execute('SELECT id,name,start_date,end_date FROM trips ORDER BY start_date DESC,name').fetchall()
+        return [dict(zip(('id', 'name', 'start_date', 'end_date'), row)) for row in rows]
+
+    def create_trip(self, name, start_date, end_date):
+        name = name.strip()
+        if not name or len(name) > 100:
+            raise ValueError('Trip name must contain 1–100 characters')
+        try:
+            if not all(re.fullmatch(r'\d{4}-\d{2}-\d{2}', value) for value in (start_date, end_date)):
+                raise ValueError
+            start, end = date.fromisoformat(start_date), date.fromisoformat(end_date)
+        except ValueError as exc:
+            raise ValueError('Trip dates must be valid dates in YYYY-MM-DD format') from exc
+        if end < start or (end - start).days >= 366:
+            raise ValueError('Choose a trip period of 1–366 days')
+        trip = {'id': str(uuid4()), 'name': name, 'start_date': start_date, 'end_date': end_date}
+        try:
+            with self.connect() as db:
+                db.execute('INSERT INTO trips VALUES (?,?,?,?)', tuple(trip.values()))
+        except sqlite3.IntegrityError as exc:
+            raise ValueError('A trip with this name already exists') from exc
+        return trip
 
     def insert(self, feed, points):
         with self.connect() as db:

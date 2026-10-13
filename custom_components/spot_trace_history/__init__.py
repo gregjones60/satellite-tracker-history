@@ -20,6 +20,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import SpotAPI
 from .store import Store
+from .trips import ws_trips, ws_create_trip
 from .const import DOMAIN, INTERVAL
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -106,6 +107,8 @@ async def async_setup_entry(hass, entry):
     if not hass.data[DOMAIN].get('_ws_registered'):
         websocket_api.async_register_command(hass, ws_devices)
         websocket_api.async_register_command(hass, ws_track)
+        websocket_api.async_register_command(hass, ws_trips)
+        websocket_api.async_register_command(hass, ws_create_trip)
         hass.data[DOMAIN]['_ws_registered'] = True
     # Backfill can take a long time; start it without blocking startup.
     # Historical pages require separate API requests. Manual backfill deferred to a later release.
