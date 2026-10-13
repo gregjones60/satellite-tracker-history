@@ -71,3 +71,9 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 ## Duplicate frontend script registration (13 October 2026)
 
 - Wrapped the card script in a private scope and guarded custom-element and card-picker registration. Added behavioral tests that load the script twice and load it after an existing definition. An old manual `/local/` resource must still be removed: existing definitions cannot be replaced on a loaded page, and older scripts lack these guards.
+
+## Map zoom and parent sizing (13 October 2026)
+
+- Added accessible on-map +/− buttons using the same bounded zoom function as wheel events. Buttons disable at zoom limits; their pointer events do not start map dragging.
+- Replaced the fixed map height with a flex layout filling a sized parent, preserving controls and a 420px fallback basis for parents without a height. The map retains a 200px minimum height. Documented HA Panel view for full-width display and the parent-height requirement.
+- Validation: 64 Python tests and 13 JavaScript tests pass, including button/wheel behavior and limits. Browser/HA visual layout remains unverified.
