@@ -82,6 +82,47 @@ def test_missing_trip_mutations_do_not_create_definitions(tmp_path):
     assert store.list_trips() == []
 
 
+def test_edit_dates_without_renaming(tmp_path):
+    store = Store(tmp_path / 'history.sqlite')
+    trip = store.create_trip('Camping','2026-01-01','2026-01-02')
+    updated = store.update_trip(trip['id'],'Camping','2026-01-01','2026-01-05')
+    assert updated['id'] == trip['id']
+    assert updated['name'] == 'Camping'
+    assert updated['end_date'] == '2026-01-05'
+    assert store.list_trips() == [updated]
+
+
+def test_trip_participants_persist_deduplicate_and_legacy_updates_preserve_them(tmp_path):
+    store = Store(tmp_path / 'history.sqlite')
+    device = {'feed_id':'vehicle-feed','device':'vehicle-id'}
+    trip = store.create_trip('Weekend','2026-01-01','2026-01-02',[device,device])
+    assert trip['devices'] == [device]
+    assert Store(store.path).list_trips() == [trip]
+    # Older clients omit participants when updating dates.
+    edited = store.update_trip(trip['id'],'Weekend','2026-01-01','2026-01-03')
+    assert edited['devices'] == [device]
+    edited = store.update_trip(trip['id'],'Weekend','2026-01-01','2026-01-03',None)
+    assert edited['devices'] is None
+
+
+def test_existing_trip_table_migrates_to_all_vehicles(tmp_path):
+    path = tmp_path/'history.sqlite'
+    with sqlite3.connect(path) as db:
+        db.execute('CREATE TABLE trips (id TEXT PRIMARY KEY,name TEXT UNIQUE,start_date TEXT,end_date TEXT)')
+        db.execute("INSERT INTO trips VALUES ('1','Old trip','2026-01-01','2026-01-02')")
+    assert Store(path).list_trips() == [{'id':'1','name':'Old trip','start_date':'2026-01-01',
+                                       'end_date':'2026-01-02','devices':None}]
+
+
+@pytest.mark.parametrize('devices', [[], [{'feed_id':'feed'}], [{'feed_id':'','device':'d'}],
+                                    [{'feed_id':'feed','device':123}], 'vehicle'])
+def test_invalid_participants_are_not_saved(tmp_path,devices):
+    store = Store(tmp_path/'history.sqlite')
+    with pytest.raises(ValueError):
+        store.create_trip('Trip','2026-01-01','2026-01-02',devices)
+    assert store.list_trips() == []
+
+
 @pytest.fixture
 def websocket_module(monkeypatch):
     components = types.ModuleType('homeassistant.components')
@@ -113,12 +154,14 @@ async def test_websocket_create_list_and_validation(websocket_module,tmp_path):
                                  async_add_executor_job=execute)
     connection = Mock()
     message = {'id':1,'type':'spot_trace_history/create_trip','name':'Camping',
-               'start_date':'2026-01-01','end_date':'2026-01-02'}
+               'start_date':'2026-01-01','end_date':'2026-01-02',
+               'devices':[{'feed_id':'vehicle-feed','device':'vehicle-id'}]}
     # HA adds the request id separately; validate the command payload.
     websocket_module.ws_create_trip.schema({k:v for k,v in message.items() if k!='id'})
     await websocket_module.ws_create_trip(hass,connection,message)
     trip = connection.send_result.call_args.args[1]
     assert trip['name'] == 'Camping'
+    assert trip['devices'] == message['devices']
     await websocket_module.ws_trips(hass,connection,{'id':2})
     connection.send_result.assert_called_with(2,[trip])
     connection.reset_mock()
@@ -137,10 +180,12 @@ async def test_websocket_update_delete_and_stale_selection(websocket_module,tmp_
     trip = store.create_trip('Camping','2026-01-01','2026-01-02')
     connection = Mock()
     update = {'id':1,'type':'spot_trace_history/update_trip','trip_id':trip['id'],
-              'name':'Summer','start_date':'2026-01-02','end_date':'2026-01-03'}
+              'name':'Summer','start_date':'2026-01-02','end_date':'2026-01-03',
+              'devices':[{'feed_id':'camper-feed','device':'camper-id'}]}
     websocket_module.ws_update_trip.schema({k:v for k,v in update.items() if k!='id'})
     await websocket_module.ws_update_trip(hass,connection,update)
     assert connection.send_result.call_args.args[1]['name'] == 'Summer'
+    assert connection.send_result.call_args.args[1]['devices'] == update['devices']
     connection.reset_mock()
     await websocket_module.ws_update_trip(hass,connection,{**update,'name':' '})
     assert connection.send_error.call_args.args[:2] == (1,'invalid_trip')

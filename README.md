@@ -70,10 +70,14 @@ remains necessary.
 
 ## Named trips
 
-On the map card, choose **From** and **To**, enter a **Trip name**, and click
-**Save dates as trip**. Choose a saved trip from the **Trip** dropdown to load
-that period immediately. Device checkboxes still determine which trackers are
-shown. Changing either date returns the selector to **Custom dates**; click
+On the map card, choose **From** and **To**, then click **New trip**. A dialog
+opens with those dates; enter a name and click **Create trip**. Choose a saved
+trip from the **Trip** dropdown to load
+that period immediately. In the dialog, select the **Vehicles involved**—for
+example, check the vehicle and leave the camper trailer unchecked for a weekend
+away without it. Alternatively choose **All vehicles (including future trackers)**.
+Selecting a trip filters both its period and participants; map device checkboxes
+can narrow the display further. Changing either date returns the selector to **Custom dates**; click
 **Refresh** to apply those dates and reload the saved-trip list.
 
 Trips are shared across this integration's feeds and cards, and persist in
@@ -84,9 +88,18 @@ calendar days; the existing track query limit of 366 elapsed days and 50,000
 positions per device still applies. Creating a trip does not copy or alter GPS
 records; future positions inside its period are included automatically.
 
-To change a saved trip, select it and click **Edit trip**. Change its name or
-From/To dates, then click **Save changes**. **Cancel edit** restores the saved
-dates without writing changes. Editing keeps the existing trip ID.
+To change a saved trip, select it and click **Edit trip**. The dialog opens with
+its existing name and dates. Change the name or dates, then click **Save changes**.
+You can keep the original name when changing dates. **Cancel** or Escape closes
+the dialog without changing the trip or map filter. Editing keeps the existing
+trip ID. Save errors appear inside the dialog and retain the entered values.
+Vehicle selections can be changed in the same dialog. Each participant is
+identified by feed ID and messenger ID, so identically named vehicles remain
+distinct. Selections survive removing/re-adding a feed. An unavailable vehicle
+remains listed and selected in the editor until you uncheck it. Trips created
+before vehicle selection was added include all vehicles by default; editing
+them lets you choose specific participants. Select at least one vehicle unless
+you use the all-vehicles option. Vehicle selection changes no archived positions.
 
 To remove a trip, select it and click **Delete trip**, then confirm. This removes
 only its definition; all GPS records remain. The displayed dates remain as

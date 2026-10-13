@@ -1,5 +1,6 @@
 """Persistent GPS archive."""
 import sqlite3
+import json
 from datetime import date
 import re
 from uuid import uuid4
@@ -15,12 +16,34 @@ class Store:
         db.execute('CREATE INDEX IF NOT EXISTS position_lookup ON positions(feed,device,time)')
         db.execute('CREATE UNIQUE INDEX IF NOT EXISTS position_fix_dedupe ON positions(feed,device,time,lat,lon)')
         db.execute('CREATE TABLE IF NOT EXISTS trips (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, start_date TEXT NOT NULL, end_date TEXT NOT NULL)')
+        if 'devices' not in {row[1] for row in db.execute('PRAGMA table_info(trips)')}:
+            try:
+                db.execute('ALTER TABLE trips ADD COLUMN devices TEXT')
+            except sqlite3.OperationalError as exc:
+                if 'duplicate column name' not in str(exc):
+                    raise
         return db
 
     def list_trips(self):
         with self.connect() as db:
-            rows = db.execute('SELECT id,name,start_date,end_date FROM trips ORDER BY start_date DESC,name').fetchall()
-        return [dict(zip(('id', 'name', 'start_date', 'end_date'), row)) for row in rows]
+            rows = db.execute('SELECT id,name,start_date,end_date,devices FROM trips ORDER BY start_date DESC,name').fetchall()
+        return [{'id':r[0], 'name':r[1], 'start_date':r[2], 'end_date':r[3],
+                 'devices':json.loads(r[4]) if r[4] is not None else None} for r in rows]
+
+    @staticmethod
+    def _trip_devices(devices):
+        if devices is None:
+            return None
+        if not isinstance(devices, list) or not devices:
+            raise ValueError('Select at least one vehicle or choose all vehicles')
+        result = []
+        for device in devices:
+            if (not isinstance(device, dict) or set(device) != {'feed_id', 'device'}
+                    or not all(isinstance(v, str) and v.strip() for v in device.values())):
+                raise ValueError('Trip vehicles require a feed ID and messenger ID')
+            if device not in result:
+                result.append(dict(device))
+        return result
 
     @staticmethod
     def _validate_trip(name, start_date, end_date):
@@ -37,27 +60,36 @@ class Store:
             raise ValueError('Choose a trip period of 1–366 days')
         return name
 
-    def create_trip(self, name, start_date, end_date):
+    def create_trip(self, name, start_date, end_date, devices=None):
         name = self._validate_trip(name, start_date, end_date)
-        trip = {'id': str(uuid4()), 'name': name, 'start_date': start_date, 'end_date': end_date}
+        devices = self._trip_devices(devices)
+        trip = {'id': str(uuid4()), 'name': name, 'start_date': start_date, 'end_date': end_date, 'devices':devices}
         try:
             with self.connect() as db:
-                db.execute('INSERT INTO trips VALUES (?,?,?,?)', tuple(trip.values()))
+                db.execute('INSERT INTO trips (id,name,start_date,end_date,devices) VALUES (?,?,?,?,?)',
+                           (trip['id'], name, start_date, end_date, json.dumps(devices) if devices is not None else None))
         except sqlite3.IntegrityError as exc:
             raise ValueError('A trip with this name already exists') from exc
         return trip
 
-    def update_trip(self, trip_id, name, start_date, end_date):
+    def update_trip(self, trip_id, name, start_date, end_date, devices=...):
         name = self._validate_trip(name, start_date, end_date)
+        if devices is not ...:
+            devices = self._trip_devices(devices)
         try:
             with self.connect() as db:
                 cursor = db.execute('UPDATE trips SET name=?,start_date=?,end_date=? WHERE id=?',
                                     (name, start_date, end_date, trip_id))
                 if cursor.rowcount != 1:
                     raise KeyError('Trip not found; refresh the saved-trip list')
+                if devices is not ...:
+                    db.execute('UPDATE trips SET devices=? WHERE id=?',
+                               (json.dumps(devices) if devices is not None else None, trip_id))
+                stored = db.execute('SELECT devices FROM trips WHERE id=?', (trip_id,)).fetchone()[0]
         except sqlite3.IntegrityError as exc:
             raise ValueError('A trip with this name already exists') from exc
-        return {'id': trip_id, 'name': name, 'start_date': start_date, 'end_date': end_date}
+        return {'id': trip_id, 'name': name, 'start_date': start_date, 'end_date': end_date,
+                'devices':json.loads(stored) if stored is not None else None}
 
     def delete_trip(self, trip_id):
         with self.connect() as db:

@@ -24,8 +24,9 @@ class SpotTraceHistoryCard extends HTMLElement {
       svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
       .legend{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0}.swatch{display:inline-block;width:11px;height:11px;border-radius:50%}
       button{border:1px solid var(--divider-color,#aaa);border-radius:6px;background:transparent;color:inherit;padding:5px 10px;cursor:pointer}
+      .trip-dialog{width:min(420px,calc(100vw - 48px));border:1px solid var(--divider-color,#aaa);border-radius:12px;padding:20px;color:inherit;background:var(--ha-card-background,var(--card-background-color,#fff))}.trip-dialog::backdrop{background:#0008}.trip-form{display:flex;flex-direction:column;gap:14px}.trip-form label{display:flex;flex-direction:column;align-items:stretch}.trip-form .trip-vehicle{flex-direction:row;align-items:center;margin:8px 0}.trip-vehicles{max-height:200px;overflow:auto}.trip-error{margin:0;color:var(--error-color,#db4437)}
       .note{font-size:12px;color:var(--secondary-text-color);margin-top:8px}
-      </style><div class="wrap"><h3></h3><div class="controls"><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="controls trip-controls"><label>Trip <select class="trip-select" aria-label="Saved trip"><option value="">Custom dates</option></select></label><label>Trip name <input class="trip-name" type="text" maxlength="100" placeholder="e.g. Winter camping"></label><button class="save-trip" type="button">Save dates as trip</button><button class="edit-trip" type="button" disabled>Edit trip</button><button class="delete-trip" type="button" disabled>Delete trip</button><button class="cancel-trip-edit" type="button" hidden>Cancel edit</button></div><div class="legend"></div><div class="map"><div class="tiles"></div><svg xmlns="http://www.w3.org/2000/svg"></svg><div class="zoom-controls" role="group" aria-label="Map zoom"><button type="button" class="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><button type="button" class="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div></div><div class="note" role="status"></div></div>`;
+      </style><div class="wrap"><h3></h3><div class="controls"><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="controls trip-controls"><label>Trip <select class="trip-select" aria-label="Saved trip"><option value="">Custom dates</option></select></label><button class="new-trip" type="button">New trip</button><button class="edit-trip" type="button" disabled>Edit trip</button><button class="delete-trip" type="button" disabled>Delete trip</button></div><dialog class="trip-dialog" aria-labelledby="trip-dialog-title"><form class="trip-form"><h3 id="trip-dialog-title" class="trip-dialog-title">New trip</h3><label>Name <input class="trip-name" type="text" required maxlength="100" autofocus></label><label>From <input class="trip-from" type="date" required></label><label>To <input class="trip-to" type="date" required></label><fieldset><legend>Vehicles involved</legend><label class="trip-vehicle"><input class="trip-all-devices" type="checkbox">All vehicles (including future trackers)</label><div class="trip-vehicles"></div></fieldset><p class="trip-error" role="alert"></p><div class="controls"><button class="cancel-trip-edit" type="button">Cancel</button><button class="save-trip" type="submit">Create trip</button></div></form></dialog><div class="legend"></div><div class="map"><div class="tiles"></div><svg xmlns="http://www.w3.org/2000/svg"></svg><div class="zoom-controls" role="group" aria-label="Map zoom"><button type="button" class="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><button type="button" class="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div></div><div class="note" role="status"></div></div>`;
     this.shadowRoot.querySelector('h3').textContent=config.title || 'SPOT Trace History';
     const today=new Date(), start=new Date(today.getTime()-this.days*86400000);
     const date=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -35,11 +36,14 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.trips=[];
     this.editingTrip=null;
     this.shadowRoot.querySelector('.trip-select').onchange=()=>this.selectTrip();
-    this.shadowRoot.querySelector('.save-trip').onclick=()=>this.saveTrip();
+    this.shadowRoot.querySelector('.new-trip').onclick=()=>this.openTripDialog();
+    this.shadowRoot.querySelector('.trip-form').addEventListener('submit',e=>{e.preventDefault();this.saveTrip()});
+    this.shadowRoot.querySelector('.trip-dialog').addEventListener('cancel',e=>{if(this.savingTrip)e.preventDefault()});
+    this.shadowRoot.querySelector('.trip-dialog').addEventListener('close',()=>{this.editingTrip=null;this.syncTripControls()});
     this.shadowRoot.querySelector('.edit-trip').onclick=()=>this.editTrip();
     this.shadowRoot.querySelector('.delete-trip').onclick=()=>this.deleteTrip();
     this.shadowRoot.querySelector('.cancel-trip-edit').onclick=()=>this.cancelTripEdit();
-    for(const selector of ['.from','.to']) this.shadowRoot.querySelector(selector).onchange=()=>{if(!this.editingTrip)this.shadowRoot.querySelector('.trip-select').value='';this.syncTripControls()};
+    for(const selector of ['.from','.to']) this.shadowRoot.querySelector(selector).onchange=()=>{this.shadowRoot.querySelector('.trip-select').value='';this.syncTripControls();this.legend()};
     this.shadowRoot.querySelector('.fit').onclick=()=>{this.fit();this.draw()};
     this.shadowRoot.querySelector('.zoom-in').onclick=()=>this.changeZoom(1);
     this.shadowRoot.querySelector('.zoom-out').onclick=()=>this.changeZoom(-1);
@@ -58,7 +62,8 @@ class SpotTraceHistoryCard extends HTMLElement {
   set hass(hass){this._hass=hass;if(!this.initialized){this.initialized=true;this.loadDevices()}}
   async loadDevices(){
     try {
-      this.devices=await this._hass.callWS({type:'spot_trace_history/devices'});
+      this.allDevices=await this._hass.callWS({type:'spot_trace_history/devices'});
+      this.devices=this.allDevices;
       this.devices=this.devices.filter(d=>!this.cfg.entry_id || d.entry_id===this.cfg.entry_id);
       this.devices=this.devices.filter(d=>this.deviceSettings(d)?.enabled!==false);
       this.devices.forEach(d=>{this.selected[d.entry_id+':'+d.device]=true});
@@ -78,36 +83,67 @@ class SpotTraceHistoryCard extends HTMLElement {
     for(const trip of this.trips){const opt=document.createElement('option');opt.value=trip.id;opt.textContent=`${trip.name} (${trip.start_date} – ${trip.end_date})`;select.append(opt)}
     select.value=this.trips.some(trip=>trip.id===selected)?selected:'';
     this.syncTripControls();
+    if(this.devices)this.legend();
   }
   syncTripControls(){
     const selected=this.trips.some(t=>t.id===this.shadowRoot.querySelector('.trip-select').value);
     this.shadowRoot.querySelector('.edit-trip').disabled=!selected||Boolean(this.editingTrip);
     this.shadowRoot.querySelector('.delete-trip').disabled=!selected||Boolean(this.editingTrip);
-    this.shadowRoot.querySelector('.cancel-trip-edit').hidden=!this.editingTrip;
-    this.shadowRoot.querySelector('.save-trip').textContent=this.editingTrip?'Save changes':'Save dates as trip';
+    this.shadowRoot.querySelector('.save-trip').textContent=this.editingTrip?'Save changes':'Create trip';
   }
   async selectTrip(){
-    if(this.editingTrip){this.editingTrip=null;this.shadowRoot.querySelector('.trip-name').value=''}
     this.syncTripControls();
     const trip=this.trips.find(t=>t.id===this.shadowRoot.querySelector('.trip-select').value);
-    if(!trip)return;
+    this.legend();
+    if(!trip){await this.loadTracks();return}
     this.shadowRoot.querySelector('.from').value=trip.start_date;
     this.shadowRoot.querySelector('.to').value=trip.end_date;
     await this.loadTracks();
   }
+  openTripDialog(trip=null){
+    this.editingTrip=trip?.id||null;
+    this.shadowRoot.querySelector('.trip-dialog-title').textContent=trip?'Edit trip':'New trip';
+    this.shadowRoot.querySelector('.trip-name').value=trip?.name||'';
+    this.shadowRoot.querySelector('.trip-from').value=trip?.start_date||this.shadowRoot.querySelector('.from').value;
+    this.shadowRoot.querySelector('.trip-to').value=trip?.end_date||this.shadowRoot.querySelector('.to').value;
+    this.shadowRoot.querySelector('.trip-error').textContent='';
+    this.renderTripVehicles(trip);
+    this.syncTripControls();
+    this.shadowRoot.querySelector('.trip-dialog').showModal();
+  }
+  tripDevices(){
+    const trip=this.trips?.find(t=>t.id===this.shadowRoot.querySelector('.trip-select').value);
+    if(!trip?.devices)return this.devices||[];
+    return (this.devices||[]).filter(d=>trip.devices.some(p=>p.feed_id===d.feed_id&&p.device===d.device));
+  }
+  renderTripVehicles(trip){
+    const container=this.shadowRoot.querySelector('.trip-vehicles');container.replaceChildren();
+    const all=this.shadowRoot.querySelector('.trip-all-devices');all.checked=Boolean(trip)&&trip.devices==null;
+    const available=[...(this.allDevices||this.devices||[])];
+    for(const participant of trip?.devices||[]) {
+      if(!available.some(d=>d.feed_id===participant.feed_id&&d.device===participant.device))available.push({...participant,name:participant.device,unavailable:true});
+    }
+    this.tripVehicleChecks=available.map(d=>{
+      const reference={feed_id:d.feed_id,device:d.device};
+      const label=document.createElement('label');label.className='trip-vehicle';
+      const checkbox=document.createElement('input');checkbox.type='checkbox';
+      checkbox.checked=trip?(trip.devices==null||trip.devices.some(p=>p.feed_id===d.feed_id&&p.device===d.device)):this.selected[d.entry_id+':'+d.device]!==false;
+      const name=this.deviceSettings(d).name||d.name||d.device;
+      label.append(checkbox,document.createTextNode(`${name} (${d.device}, feed ${d.feed_id})${d.unavailable?' — unavailable':''}`));container.append(label);
+      return {reference,checkbox};
+    });
+    const toggle=()=>{for(const item of this.tripVehicleChecks)item.checkbox.disabled=all.checked};
+    all.onchange=toggle;toggle();
+  }
   editTrip(){
     const trip=this.trips.find(t=>t.id===this.shadowRoot.querySelector('.trip-select').value);
-    if(!trip)return;
-    this.editingTrip=trip.id;
-    this.shadowRoot.querySelector('.trip-name').value=trip.name;
-    this.shadowRoot.querySelector('.from').value=trip.start_date;
-    this.shadowRoot.querySelector('.to').value=trip.end_date;
-    this.syncTripControls();
-    this.status('Edit the trip name and dates, then save changes or cancel.');
+    if(trip)this.openTripDialog(trip);
   }
-  async cancelTripEdit(){
-    this.editingTrip=null;this.shadowRoot.querySelector('.trip-name').value='';
-    await this.selectTrip();
+  cancelTripEdit(){
+    if(this.savingTrip)return;
+    this.editingTrip=null;
+    this.shadowRoot.querySelector('.trip-dialog').close();
+    this.syncTripControls();
   }
   async deleteTrip(){
     const trip=this.trips.find(t=>t.id===this.shadowRoot.querySelector('.trip-select').value);
@@ -122,22 +158,33 @@ class SpotTraceHistoryCard extends HTMLElement {
   }
   async saveTrip(){
     const name=this.shadowRoot.querySelector('.trip-name').value.trim();
-    const start_date=this.shadowRoot.querySelector('.from').value,end_date=this.shadowRoot.querySelector('.to').value;
-    if(!name){this.status('Enter a trip name');return}
+    const start_date=this.shadowRoot.querySelector('.trip-from').value,end_date=this.shadowRoot.querySelector('.trip-to').value;
+    if(this.savingTrip)return;
+    const error=this.shadowRoot.querySelector('.trip-error');
+    if(!name){error.textContent='Enter a trip name';return}
+    if(!start_date||!end_date||end_date<start_date){error.textContent='Choose valid start and end dates';return}
+    error.textContent='';
+    this.savingTrip=true;
     const button=this.shadowRoot.querySelector('.save-trip');button.disabled=true;
+    this.shadowRoot.querySelector('.cancel-trip-edit').disabled=true;
     try {
-      const payload={type:this.editingTrip?'spot_trace_history/update_trip':'spot_trace_history/create_trip',name,start_date,end_date};
+      const devices=this.shadowRoot.querySelector('.trip-all-devices').checked?null:this.tripVehicleChecks.filter(item=>item.checkbox.checked).map(item=>item.reference);
+      if(devices&& !devices.length){error.textContent='Select at least one vehicle or choose all vehicles';return}
+      const payload={type:this.editingTrip?'spot_trace_history/update_trip':'spot_trace_history/create_trip',name,start_date,end_date,devices};
       if(this.editingTrip)payload.trip_id=this.editingTrip;
       const trip=await this._hass.callWS(payload);
       this.editingTrip=null;
       this.trips=[trip,...this.trips.filter(t=>t.id!==trip.id)];this.renderTrips(trip.id);
+      this.shadowRoot.querySelector('.from').value=trip.start_date;
+      this.shadowRoot.querySelector('.to').value=trip.end_date;
       this.shadowRoot.querySelector('.trip-name').value='';
-      await this.loadTracks();
-    }catch(e){this.status('Unable to save trip: '+e.message)}
-    finally{button.disabled=false}
+      this.shadowRoot.querySelector('.trip-dialog').close();
+      this.legend();await this.loadTracks();
+    }catch(e){error.textContent='Unable to save trip: '+e.message}
+    finally{this.savingTrip=false;button.disabled=false;this.shadowRoot.querySelector('.cancel-trip-edit').disabled=false}
   }
   legend(){const el=this.shadowRoot.querySelector('.legend');el.replaceChildren();
-    this.devices.forEach((d,i)=>{const k=d.entry_id+':'+d.device, opt=this.deviceSettings(d)||{},color=opt.color||this.palette(i);
+    this.tripDevices().forEach(d=>{const k=d.entry_id+':'+d.device, opt=this.deviceSettings(d)||{},color=opt.color||this.palette(this.devices.indexOf(d));
       const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.checked=this.selected[k];check.onchange=()=>{this.selected[k]=check.checked;this.loadTracks()};
       const dot=document.createElement('span');dot.className='swatch';dot.style.background=color;
       label.append(check,dot,document.createTextNode(opt.name||d.name||d.device));el.append(label)})
@@ -151,7 +198,7 @@ class SpotTraceHistoryCard extends HTMLElement {
     if(!Number.isFinite(start)||!Number.isFinite(end)||end<start){this.status('Invalid date range');return}
     if(end-start>366*86400){this.status('Select a date range of up to 366 days');return}
     this.status('Loading tracks…');
-    try {this.tracks=await Promise.all(this.devices.filter(d=>this.selected[d.entry_id+':'+d.device]).map(async d=>({d,points:await this._hass.callWS({type:'spot_trace_history/track',entry_id:d.entry_id,device:d.device,start:Math.floor(start),end:Math.floor(end),limit:50000})})));
+    try {this.tracks=await Promise.all(this.tripDevices().filter(d=>this.selected[d.entry_id+':'+d.device]).map(async d=>({d,points:await this._hass.callWS({type:'spot_trace_history/track',entry_id:d.entry_id,device:d.device,start:Math.floor(start),end:Math.floor(end),limit:50000})})));
       this.fit();this.draw();this.status(this.tracks.reduce((s,t)=>s+t.points.length,0)+' positions displayed. Scroll to zoom, drag to pan. Map ' + this.tileAttribution + '');
     }catch(e){this.status('Track loading failed: '+e.message)}
   }
