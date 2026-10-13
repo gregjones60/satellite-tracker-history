@@ -68,6 +68,26 @@ requires the containing layout to supply a height; a normal dashboard column
 still controls the card's available width and space. Live HA layout validation
 remains necessary.
 
+## Named trips
+
+On the map card, choose **From** and **To**, enter a **Trip name**, and click
+**Save dates as trip**. Choose a saved trip from the **Trip** dropdown to load
+that period immediately. Device checkboxes still determine which trackers are
+shown. Changing either date returns the selector to **Custom dates**; click
+**Refresh** to apply those dates and reload the saved-trip list.
+
+Trips are shared across this integration's feeds and cards, and persist in
+`spot_trace_history.sqlite` across restarts. They save inclusive calendar dates,
+interpreted in the browser's timezone like the existing date controls. Names
+must be unique and contain 1–100 characters. Trip periods are capped at 366
+calendar days; the existing track query limit of 366 elapsed days and 50,000
+positions per device still applies. Creating a trip does not copy or alter GPS
+records; future positions inside its period are included automatically.
+
+This first version supports creating and selecting trips. Renaming, changing
+saved dates, deleting definitions, and selecting multiple trips are future work.
+Live Home Assistant UI validation remains necessary.
+
 ## Import GPX history
 
 Put exports under `/config/spot_exports/` and run **Developer Tools → Actions**:

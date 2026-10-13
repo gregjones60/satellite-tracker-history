@@ -14,7 +14,7 @@ class SpotTraceHistoryCard extends HTMLElement {
       :host{display:block;width:100%;height:100%;min-height:0;box-sizing:border-box} .wrap{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;box-sizing:border-box;padding:16px;color:var(--primary-text-color);background:var(--ha-card-background,var(--card-background-color,#fff));border-radius:var(--ha-card-border-radius,12px)}
       .head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}h3{margin:0 0 12px}
       .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
-      label{display:flex;align-items:center;gap:5px;font-size:13px}input[type=date]{background:transparent;color:inherit;border:1px solid var(--divider-color,#aaa);border-radius:5px;padding:5px}
+      label{display:flex;align-items:center;gap:5px;font-size:13px}input,select{background:var(--ha-card-background,var(--card-background-color,#fff));color:inherit;border:1px solid var(--divider-color,#aaa);border-radius:5px;padding:5px;max-width:100%;box-sizing:border-box}
       .map{flex:1 1 420px;min-height:200px;width:100%;position:relative;overflow:hidden;background:#dce5e7;border-radius:8px;touch-action:none}
       .controls,.legend,h3,.note{flex-shrink:0}
       .zoom-controls{position:absolute;top:10px;right:10px;z-index:1;display:flex;flex-direction:column;gap:4px}
@@ -25,13 +25,17 @@ class SpotTraceHistoryCard extends HTMLElement {
       .legend{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0}.swatch{display:inline-block;width:11px;height:11px;border-radius:50%}
       button{border:1px solid var(--divider-color,#aaa);border-radius:6px;background:transparent;color:inherit;padding:5px 10px;cursor:pointer}
       .note{font-size:12px;color:var(--secondary-text-color);margin-top:8px}
-      </style><div class="wrap"><h3></h3><div class="controls"><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="legend"></div><div class="map"><div class="tiles"></div><svg xmlns="http://www.w3.org/2000/svg"></svg><div class="zoom-controls" role="group" aria-label="Map zoom"><button type="button" class="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><button type="button" class="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div></div><div class="note" role="status"></div></div>`;
+      </style><div class="wrap"><h3></h3><div class="controls"><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="controls trip-controls"><label>Trip <select class="trip-select" aria-label="Saved trip"><option value="">Custom dates</option></select></label><label>Trip name <input class="trip-name" type="text" maxlength="100" placeholder="e.g. Winter camping"></label><button class="save-trip" type="button">Save dates as trip</button></div><div class="legend"></div><div class="map"><div class="tiles"></div><svg xmlns="http://www.w3.org/2000/svg"></svg><div class="zoom-controls" role="group" aria-label="Map zoom"><button type="button" class="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><button type="button" class="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div></div><div class="note" role="status"></div></div>`;
     this.shadowRoot.querySelector('h3').textContent=config.title || 'SPOT Trace History';
     const today=new Date(), start=new Date(today.getTime()-this.days*86400000);
     const date=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     this.shadowRoot.querySelector('.from').value=date(start);
     this.shadowRoot.querySelector('.to').value=date(today);
-    this.shadowRoot.querySelector('.refresh').onclick=()=>this.loadTracks();
+    this.shadowRoot.querySelector('.refresh').onclick=async()=>{await this.loadTrips(this.shadowRoot.querySelector('.trip-select').value);await this.loadTracks()};
+    this.trips=[];
+    this.shadowRoot.querySelector('.trip-select').onchange=()=>this.selectTrip();
+    this.shadowRoot.querySelector('.save-trip').onclick=()=>this.saveTrip();
+    for(const selector of ['.from','.to']) this.shadowRoot.querySelector(selector).onchange=()=>{this.shadowRoot.querySelector('.trip-select').value=''};
     this.shadowRoot.querySelector('.fit').onclick=()=>{this.fit();this.draw()};
     this.shadowRoot.querySelector('.zoom-in').onclick=()=>this.changeZoom(1);
     this.shadowRoot.querySelector('.zoom-out').onclick=()=>this.changeZoom(-1);
@@ -54,8 +58,41 @@ class SpotTraceHistoryCard extends HTMLElement {
       this.devices=this.devices.filter(d=>!this.cfg.entry_id || d.entry_id===this.cfg.entry_id);
       this.devices=this.devices.filter(d=>this.deviceSettings(d)?.enabled!==false);
       this.devices.forEach(d=>{this.selected[d.entry_id+':'+d.device]=true});
-      this.legend();await this.loadTracks();
+      this.legend();await this.loadTracks();await this.loadTrips();
     } catch(e){this.status('Unable to load devices: '+e.message)}
+  }
+  async loadTrips(selected=''){
+    try {
+      this.trips=await this._hass.callWS({type:'spot_trace_history/trips'});
+      this.renderTrips(selected);
+    }catch(e){this.status('Unable to load trips: '+e.message)}
+  }
+  renderTrips(selected=''){
+    const select=this.shadowRoot.querySelector('.trip-select');
+    select.replaceChildren();
+    const custom=document.createElement('option');custom.value='';custom.textContent='Custom dates';select.append(custom);
+    for(const trip of this.trips){const opt=document.createElement('option');opt.value=trip.id;opt.textContent=`${trip.name} (${trip.start_date} – ${trip.end_date})`;select.append(opt)}
+    select.value=selected;
+  }
+  async selectTrip(){
+    const trip=this.trips.find(t=>t.id===this.shadowRoot.querySelector('.trip-select').value);
+    if(!trip)return;
+    this.shadowRoot.querySelector('.from').value=trip.start_date;
+    this.shadowRoot.querySelector('.to').value=trip.end_date;
+    await this.loadTracks();
+  }
+  async saveTrip(){
+    const name=this.shadowRoot.querySelector('.trip-name').value.trim();
+    const start_date=this.shadowRoot.querySelector('.from').value,end_date=this.shadowRoot.querySelector('.to').value;
+    if(!name){this.status('Enter a trip name');return}
+    const button=this.shadowRoot.querySelector('.save-trip');button.disabled=true;
+    try {
+      const trip=await this._hass.callWS({type:'spot_trace_history/create_trip',name,start_date,end_date});
+      this.trips=[trip,...this.trips];this.renderTrips(trip.id);
+      this.shadowRoot.querySelector('.trip-name').value='';
+      await this.loadTracks();
+    }catch(e){this.status('Unable to save trip: '+e.message)}
+    finally{button.disabled=false}
   }
   legend(){const el=this.shadowRoot.querySelector('.legend');el.replaceChildren();
     this.devices.forEach((d,i)=>{const k=d.entry_id+':'+d.device, opt=this.deviceSettings(d)||{},color=opt.color||this.palette(i);

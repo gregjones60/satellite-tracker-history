@@ -77,3 +77,9 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Added accessible on-map +/− buttons using the same bounded zoom function as wheel events. Buttons disable at zoom limits; their pointer events do not start map dragging.
 - Replaced the fixed map height with a flex layout filling a sized parent, preserving controls and a 420px fallback basis for parents without a height. The map retains a 200px minimum height. Documented HA Panel view for full-width display and the parent-height requirement.
 - Validation: 64 Python tests and 13 JavaScript tests pass, including button/wheel behavior and limits. Browser/HA visual layout remains unverified.
+
+## Named trips (13 October 2026)
+
+- Added shared persistent trip definitions with unique names and inclusive calendar start/end dates, stored in an additive SQLite table. Trips do not change or copy positions and persist independently of feed entries.
+- Added authenticated WebSocket create/list commands and card controls to save the chosen dates and select a trip. Selection loads that range for visible devices; editing dates returns to custom mode. Refresh reloads trips from other cards. Dates use the existing browser-timezone interpretation; track query bounds remain enforced.
+- Added storage/migration, validation, WebSocket, and card behavior tests. Editing/deleting definitions and multi-trip filtering remain future work. Live HA rendering remains unverified.
