@@ -29,6 +29,16 @@ Disabling the tracker keeps collecting positions and preserves map history.
 Devices with the same name are distinguished by messenger ID in the selector.
 This UI still needs validation in a live Home Assistant instance.
 
+### Duplicate card script errors
+
+If browser logs report that `spot-trace-history-card` has already been defined,
+check your dashboard resources for an old manual `/local/spot-trace-history-card.js`
+entry and remove it. The integration automatically loads its bundled script.
+Reload the browser after removing the old resource. The bundled card tolerates
+repeat loading, but the first registered version remains active for that page;
+removing the old resource ensures the current bundled version is used. An old
+manually copied script may still throw this error until its resource is removed.
+
 ## Example card
 
 ```yaml
