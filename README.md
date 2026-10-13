@@ -84,6 +84,14 @@ remains necessary.
 
 ## Named trips
 
+Use the **Year** dropdown beside the date fields to show January 1 through
+December 31 of a particular year. Years are drawn from the first/last archived
+positions of devices included by the card, plus the current year; a listed year
+may have gaps in its history. Selecting a year refreshes the map and clears the
+trip filter while retaining your device visibility choices. Editing dates
+returns the year selector to **Custom dates**, unless they match a full year.
+The existing 50,000-position limit per device still applies.
+
 On the map card, choose **From** and **To**, then click **New trip**. A dialog
 opens with those dates; enter a name and click **Create trip**. Choose a saved
 trip from the **Trip** dropdown to load

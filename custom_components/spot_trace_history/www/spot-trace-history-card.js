@@ -26,12 +26,13 @@ class SpotTraceHistoryCard extends HTMLElement {
       button{border:1px solid var(--divider-color,#aaa);border-radius:6px;background:transparent;color:inherit;padding:5px 10px;cursor:pointer}
       .trip-dialog{width:min(420px,calc(100vw - 48px));border:1px solid var(--divider-color,#aaa);border-radius:12px;padding:20px;color:inherit;background:var(--ha-card-background,var(--card-background-color,#fff))}.trip-dialog::backdrop{background:#0008}.trip-form{display:flex;flex-direction:column;gap:14px}.trip-form label{display:flex;flex-direction:column;align-items:stretch}.trip-form .trip-vehicle{flex-direction:row;align-items:center;margin:8px 0}.trip-vehicles{max-height:200px;overflow:auto}.trip-error{margin:0;color:var(--error-color,#db4437)}
       .note{font-size:12px;color:var(--secondary-text-color);margin-top:8px}
-      </style><div class="wrap"><h3></h3><div class="controls"><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="controls trip-controls"><label>Trip <select class="trip-select" aria-label="Saved trip"><option value="">Custom dates</option></select></label><button class="new-trip" type="button">New trip</button><button class="edit-trip" type="button" disabled>Edit trip</button><button class="delete-trip" type="button" disabled>Delete trip</button></div><dialog class="trip-dialog" aria-labelledby="trip-dialog-title"><form class="trip-form"><h3 id="trip-dialog-title" class="trip-dialog-title">New trip</h3><label>Name <input class="trip-name" type="text" required maxlength="100" autofocus></label><label>From <input class="trip-from" type="date" required></label><label>To <input class="trip-to" type="date" required></label><fieldset><legend>Vehicles involved</legend><label class="trip-vehicle"><input class="trip-all-devices" type="checkbox">All vehicles (including future trackers)</label><div class="trip-vehicles"></div></fieldset><p class="trip-error" role="alert"></p><div class="controls"><button class="cancel-trip-edit" type="button">Cancel</button><button class="save-trip" type="submit">Create trip</button></div></form></dialog><div class="legend"></div><div class="map"><div class="tiles"></div><svg xmlns="http://www.w3.org/2000/svg"></svg><div class="zoom-controls" role="group" aria-label="Map zoom"><button type="button" class="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><button type="button" class="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div></div><div class="note" role="status"></div></div>`;
+      </style><div class="wrap"><h3></h3><div class="controls"><label>Year <select class="year-select" aria-label="Filter by year"><option value="">Custom dates</option></select></label><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="controls trip-controls"><label>Trip <select class="trip-select" aria-label="Saved trip"><option value="">Custom dates</option></select></label><button class="new-trip" type="button">New trip</button><button class="edit-trip" type="button" disabled>Edit trip</button><button class="delete-trip" type="button" disabled>Delete trip</button></div><dialog class="trip-dialog" aria-labelledby="trip-dialog-title"><form class="trip-form"><h3 id="trip-dialog-title" class="trip-dialog-title">New trip</h3><label>Name <input class="trip-name" type="text" required maxlength="100" autofocus></label><label>From <input class="trip-from" type="date" required></label><label>To <input class="trip-to" type="date" required></label><fieldset><legend>Vehicles involved</legend><label class="trip-vehicle"><input class="trip-all-devices" type="checkbox">All vehicles (including future trackers)</label><div class="trip-vehicles"></div></fieldset><p class="trip-error" role="alert"></p><div class="controls"><button class="cancel-trip-edit" type="button">Cancel</button><button class="save-trip" type="submit">Create trip</button></div></form></dialog><div class="legend"></div><div class="map"><div class="tiles"></div><svg xmlns="http://www.w3.org/2000/svg"></svg><div class="zoom-controls" role="group" aria-label="Map zoom"><button type="button" class="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><button type="button" class="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div></div><div class="note" role="status"></div></div>`;
     this.shadowRoot.querySelector('h3').textContent=config.title || 'SPOT Trace History';
     const today=new Date(), start=new Date(today.getTime()-this.days*86400000);
     const date=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     this.shadowRoot.querySelector('.from').value=date(start);
     this.shadowRoot.querySelector('.to').value=date(today);
+    this.shadowRoot.querySelector('.year-select').onchange=()=>this.selectYear();
     this.shadowRoot.querySelector('.refresh').onclick=async()=>{await this.loadTrips(this.shadowRoot.querySelector('.trip-select').value);await this.loadTracks()};
     this.trips=[];
     this.editingTrip=null;
@@ -43,7 +44,7 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.shadowRoot.querySelector('.edit-trip').onclick=()=>this.editTrip();
     this.shadowRoot.querySelector('.delete-trip').onclick=()=>this.deleteTrip();
     this.shadowRoot.querySelector('.cancel-trip-edit').onclick=()=>this.cancelTripEdit();
-    for(const selector of ['.from','.to']) this.shadowRoot.querySelector(selector).onchange=()=>{this.shadowRoot.querySelector('.trip-select').value='';this.syncTripControls();this.legend()};
+    for(const selector of ['.from','.to']) this.shadowRoot.querySelector(selector).onchange=()=>{this.shadowRoot.querySelector('.trip-select').value='';this.syncTripControls();this.syncYear();this.legend()};
     this.shadowRoot.querySelector('.fit').onclick=()=>{this.fit();this.draw()};
     this.shadowRoot.querySelector('.zoom-in').onclick=()=>this.changeZoom(1);
     this.shadowRoot.querySelector('.zoom-out').onclick=()=>this.changeZoom(-1);
@@ -59,6 +60,33 @@ class SpotTraceHistoryCard extends HTMLElement {
   disconnectedCallback(){this.resizeObserver?.disconnect();this.tileNodes?.clear()}
   changeZoom(delta){this.zoom=Math.max(1,Math.min(17,this.zoom+delta));this.draw()}
   connectedCallback(){if(this.resizeObserver && this.shadowRoot) this.resizeObserver.observe(this.shadowRoot.querySelector('.map'))}
+  renderYears(){
+    const current=new Date().getFullYear(),years=new Set([current]);
+    for(const device of this.devices||[]){
+      const first=new Date(device.first*1000).getFullYear(),last=new Date(device.last*1000).getFullYear();
+      if(Number.isInteger(first)&&Number.isInteger(last)&&first>=1&&last<=9999&&last>=first){
+        for(let year=first;year<=last;year++)years.add(year);
+      }
+    }
+    this.availableYears=[...years].sort((a,b)=>b-a);
+    const select=this.shadowRoot.querySelector('.year-select');select.replaceChildren();
+    const custom=document.createElement('option');custom.value='';custom.textContent='Custom dates';select.append(custom);
+    for(const year of this.availableYears){const option=document.createElement('option');option.value=String(year);option.textContent=String(year);select.append(option)}
+    this.syncYear();
+  }
+  syncYear(){
+    const from=this.shadowRoot.querySelector('.from').value,to=this.shadowRoot.querySelector('.to').value;
+    const year=from.slice(0,4);
+    this.shadowRoot.querySelector('.year-select').value=(from===`${year}-01-01`&&to===`${year}-12-31`&&(this.availableYears||[]).includes(Number(year)))?year:'';
+  }
+  async selectYear(){
+    const year=Number(this.shadowRoot.querySelector('.year-select').value);
+    if(!(this.availableYears||[]).includes(year))return;
+    this.shadowRoot.querySelector('.from').value=`${year}-01-01`;
+    this.shadowRoot.querySelector('.to').value=`${year}-12-31`;
+    this.shadowRoot.querySelector('.trip-select').value='';
+    this.syncTripControls();this.legend();await this.loadTracks();
+  }
   set hass(hass){this._hass=hass;if(!this.initialized){this.initialized=true;this.loadDevices()}}
   async loadDevices(){
     try {
@@ -67,7 +95,7 @@ class SpotTraceHistoryCard extends HTMLElement {
       this.devices=this.devices.filter(d=>!this.cfg.entry_id || d.entry_id===this.cfg.entry_id);
       this.devices=this.devices.filter(d=>this.deviceSettings(d)?.enabled!==false);
       this.devices.forEach(d=>{this.selected[d.entry_id+':'+d.device]=true});
-      this.legend();await this.loadTracks();await this.loadTrips();
+      this.renderYears();this.legend();await this.loadTracks();await this.loadTrips();
     } catch(e){this.status('Unable to load devices: '+e.message)}
   }
   async loadTrips(selected=''){
@@ -98,7 +126,7 @@ class SpotTraceHistoryCard extends HTMLElement {
     if(!trip){await this.loadTracks();return}
     this.shadowRoot.querySelector('.from').value=trip.start_date;
     this.shadowRoot.querySelector('.to').value=trip.end_date;
-    await this.loadTracks();
+    this.syncYear();await this.loadTracks();
   }
   openTripDialog(trip=null){
     this.editingTrip=trip?.id||null;
@@ -179,7 +207,7 @@ class SpotTraceHistoryCard extends HTMLElement {
       this.shadowRoot.querySelector('.to').value=trip.end_date;
       this.shadowRoot.querySelector('.trip-name').value='';
       this.shadowRoot.querySelector('.trip-dialog').close();
-      this.legend();await this.loadTracks();
+      this.syncYear();this.legend();await this.loadTracks();
     }catch(e){error.textContent='Unable to save trip: '+e.message}
     finally{this.savingTrip=false;button.disabled=false;this.shadowRoot.querySelector('.cancel-trip-edit').disabled=false}
   }
@@ -204,8 +232,8 @@ class SpotTraceHistoryCard extends HTMLElement {
   }
   merc(lat,lon){const phi=Math.max(-85.0511,Math.min(85.0511,lat))*Math.PI/180;return [(lon+180)/360,(1-Math.log(Math.tan(phi)+1/Math.cos(phi))/Math.PI)/2]}
   fit(){const pts=this.tracks.flatMap(t=>t.points);if(!pts.length)return;
-    const xy=pts.map(p=>this.merc(p.lat,p.lon)), xs=xy.map(p=>p[0]),ys=xy.map(p=>p[1]);
-    const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
+    let minx=Infinity,maxx=-Infinity,miny=Infinity,maxy=-Infinity;
+    for(const p of pts){const [x,y]=this.merc(p.lat,p.lon);minx=Math.min(minx,x);maxx=Math.max(maxx,x);miny=Math.min(miny,y);maxy=Math.max(maxy,y)}
     this.cx=(minx+maxx)/2;this.cy=(miny+maxy)/2;
     const el=this.shadowRoot.querySelector('.map'),w=el.clientWidth||600,h=el.clientHeight||420;
     this.zoom=Math.max(1,Math.min(16,Math.floor(Math.log2(Math.min(w/(Math.max(.00001,maxx-minx)*320),h/(Math.max(.00001,maxy-miny)*320))))));

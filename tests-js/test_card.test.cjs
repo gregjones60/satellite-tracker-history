@@ -301,3 +301,45 @@ test('legacy trips allow all vehicles and explicit empty selections cannot be sa
   assert.match(node('.trip-error').textContent,/Select at least one vehicle/);
   assert.equal(node('.save-trip').disabled,false);
 });
+
+test('year filter offers archive years and queries the full leap year without trip restrictions', async () => {
+  const {card,node}=tripCard();
+  card.devices=[{entry_id:'feed-a',feed_id:'feed-a-id',device:'vehicle',
+                 first:Date.parse('2019-06-01T00:00:00')/1000,last:Date.parse('2025-06-01T00:00:00')/1000}];
+  card.selected={'feed-a:vehicle':true};
+  card.renderYears();
+  assert.equal(node('.year-select').children.some(o=>o.value==='2019'),true);
+  assert.equal(node('.year-select').children.some(o=>o.value==='2024'),true);
+  const queries=[];
+  card._hass={callWS:async msg=>{queries.push(msg);return []}};
+  node('.trip-select').value='old-trip';node('.year-select').value='2024';
+  await card.selectYear();
+  assert.equal(node('.trip-select').value,'');
+  assert.equal(node('.from').value,'2024-01-01');
+  assert.equal(node('.to').value,'2024-12-31');
+  assert.equal(queries[0].start,Date.parse('2024-01-01T00:00:00')/1000);
+  assert.equal(queries[0].end,Date.parse('2024-12-31T23:59:59')/1000);
+  node('.to').value='2024-11-30';node('.to').onchange();
+  assert.equal(node('.year-select').value,'');
+});
+
+test('year options use only devices included by the card and tolerate missing metadata', () => {
+  const {card,node}=tripCard();
+  card.devices=[];card.allDevices=[{first:Date.parse('2000-01-01')/1000,last:Date.parse('2001-01-01')/1000}];
+  card.renderYears();
+  assert.equal(node('.year-select').children.length,2);
+  assert.equal(node('.year-select').children.some(o=>o.value==='2000'),false);
+  card.devices=[{}];card.renderYears();
+  assert.equal(node('.year-select').children.length,2);
+});
+
+test('fit routes handles many points across multiple vehicles without spreading arrays', () => {
+  const c=cardContext();vm.runInContext(src,c.context);
+  const card=new (c.registered.get('spot-trace-history-card'))();
+  card.shadowRoot={querySelector:()=>({clientWidth:800,clientHeight:600})};
+  card.tracks=Array.from({length:4},()=>({points:Array.from({length:40000},()=>({lat:-37,lon:145}))}));
+  card.fit();
+  assert.equal(Number.isFinite(card.cx),true);
+  assert.equal(Number.isFinite(card.cy),true);
+  assert.equal(card.zoom>=1&&card.zoom<=16,true);
+});
