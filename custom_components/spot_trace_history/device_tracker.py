@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from homeassistant.components.device_tracker import SourceType, TrackerEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_DEVICES, CONF_ENABLED, CONF_NAME, DOMAIN
+from .const import CONF_DEVICES, CONF_ENABLED, CONF_ICON, CONF_NAME, DOMAIN
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -48,6 +48,15 @@ class SpotTracker(CoordinatorEntity, TrackerEntity):
     @property
     def source_type(self):
         return SourceType.GPS
+
+    @property
+    def icon(self):
+        return self.entry.options.get(CONF_DEVICES, {}).get(self.device, {}).get(CONF_ICON) or None
+
+    @property
+    def device_info(self):
+        """Associate each tracker with a native HA device for area/label settings."""
+        return {'identifiers': {(DOMAIN, self._attr_unique_id)}, 'name': self.name, 'manufacturer': 'SPOT'}
 
     @property
     def latitude(self):

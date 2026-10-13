@@ -8,7 +8,7 @@ Maintain a HACS-installable Home Assistant custom integration that ingests SPOT 
 ## Invariants
 - Each SPOT feed is a **separate Home Assistant config entry**. A feed may contain multiple messenger IDs. Never assume one feed contains all devices.
 - The SQLite archive (`spot_trace_history.sqlite` in HA config) persists independently of config entries; never delete history on feed/device removal without an explicit, reviewed data-retention feature.
-- Per-device settings are stored in the owning config entry's `options['devices'][messenger_id]`. Currently `name` and `enabled` are supported.
+- Per-device settings are stored in the owning config entry's `options['devices'][messenger_id]`. Currently `name`, `enabled`, and optional `icon` are supported. Standard entity/device area, labels, visibility, entity ID, and voice settings remain owned by HA registries; do not mirror them in config entry options.
 - `enabled=false` disables creation/loading of the device tracker; it **does not** suppress XML polling, archival, or history visibility in the map card.
 - Keep the bundled map card auto-served and auto-registered; no manual `/config/www` setup should be required.
 - Protect against unsafe filesystem access in GPX import and preserve feed-specific import targeting.

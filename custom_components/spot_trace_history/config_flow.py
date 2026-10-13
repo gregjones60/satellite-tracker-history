@@ -10,7 +10,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .api import SpotAPI
-from .const import CONF_DEVICES, CONF_ENABLED, CONF_NAME, DOMAIN
+from .const import CONF_DEVICES, CONF_ENABLED, CONF_ICON, CONF_NAME, DOMAIN
 
 
 class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -155,9 +155,16 @@ class SpotOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             name = user_input[CONF_NAME].strip()
             settings[self._selected_device] = {
+                **current,
                 CONF_NAME: name,
                 CONF_ENABLED: user_input[CONF_ENABLED],
             }
+            if CONF_ICON in user_input:
+                icon = user_input[CONF_ICON].strip()
+                if icon:
+                    settings[self._selected_device][CONF_ICON] = icon
+                else:
+                    settings[self._selected_device].pop(CONF_ICON, None)
             new_options = dict(self.config_entry.options)
             new_options[CONF_DEVICES] = settings
             return self.async_create_entry(title="", data=new_options)
@@ -168,6 +175,7 @@ class SpotOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(CONF_NAME, default=default_name): str,
                     vol.Required(CONF_ENABLED, default=default_enabled): bool,
+                    vol.Optional(CONF_ICON, default=current.get(CONF_ICON, '')): selector.IconSelector(),
                 }
             ),
             description_placeholders={

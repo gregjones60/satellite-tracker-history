@@ -6,3 +6,4 @@ INTERVAL = 300
 CONF_DEVICES = "devices"
 CONF_NAME = "name"
 CONF_ENABLED = "enabled"
+CONF_ICON = "icon"
