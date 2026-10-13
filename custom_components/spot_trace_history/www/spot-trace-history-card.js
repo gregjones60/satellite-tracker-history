@@ -1,3 +1,4 @@
+(() => {
 class SpotTraceHistoryCard extends HTMLElement {
   setConfig(config) {
     if (!config || config.type !== 'custom:spot-trace-history-card') throw Error('Invalid card type');
@@ -118,6 +119,11 @@ class SpotTraceHistoryCard extends HTMLElement {
   }
   getCardSize(){return 6}
 }
-customElements.define('spot-trace-history-card',SpotTraceHistoryCard);
+if (!customElements.get('spot-trace-history-card')) {
+  customElements.define('spot-trace-history-card',SpotTraceHistoryCard);
+}
 window.customCards=window.customCards||[];
-window.customCards.push({type:'spot-trace-history-card',name:'SPOT Trace History',description:'Historical GPS tracks for independently configurable SPOT devices'});
+if (!window.customCards.some(card=>card.type==='spot-trace-history-card')) {
+  window.customCards.push({type:'spot-trace-history-card',name:'SPOT Trace History',description:'Historical GPS tracks for independently configurable SPOT devices'});
+}
+})();
