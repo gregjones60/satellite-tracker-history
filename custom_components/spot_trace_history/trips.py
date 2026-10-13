@@ -5,6 +5,8 @@ from homeassistant.helpers import config_validation as cv
 
 from .store import Store
 
+DEVICES = vol.Any(None, [vol.Schema({vol.Required('feed_id'): cv.string, vol.Required('device'): cv.string})])
+
 
 @websocket_api.websocket_command({vol.Required('type'): 'spot_trace_history/trips'})
 @websocket_api.async_response
@@ -19,12 +21,13 @@ async def ws_trips(hass, connection, msg):
     vol.Required('name'): cv.string,
     vol.Required('start_date'): cv.string,
     vol.Required('end_date'): cv.string,
+    vol.Optional('devices'): DEVICES,
 })
 @websocket_api.async_response
 async def ws_create_trip(hass, connection, msg):
     store = Store(hass.config.path('spot_trace_history.sqlite'))
     try:
-        trip = await hass.async_add_executor_job(store.create_trip, msg['name'], msg['start_date'], msg['end_date'])
+        trip = await hass.async_add_executor_job(store.create_trip, msg['name'], msg['start_date'], msg['end_date'], msg.get('devices'))
     except ValueError as exc:
         connection.send_error(msg['id'], 'invalid_trip', str(exc))
         return
@@ -37,13 +40,14 @@ async def ws_create_trip(hass, connection, msg):
     vol.Required('name'): cv.string,
     vol.Required('start_date'): cv.string,
     vol.Required('end_date'): cv.string,
+    vol.Optional('devices'): DEVICES,
 })
 @websocket_api.async_response
 async def ws_update_trip(hass, connection, msg):
     store = Store(hass.config.path('spot_trace_history.sqlite'))
     try:
         trip = await hass.async_add_executor_job(store.update_trip, msg['trip_id'], msg['name'],
-                                                msg['start_date'], msg['end_date'])
+                                                msg['start_date'], msg['end_date'], msg.get('devices', ...))
     except ValueError as exc:
         connection.send_error(msg['id'], 'invalid_trip', str(exc))
         return

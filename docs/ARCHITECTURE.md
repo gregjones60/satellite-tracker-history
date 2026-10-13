@@ -12,7 +12,7 @@ _Reference snapshot: 12 October 2026, based on the latest Device Management UI Z
 6. `gpx.py`: parses GPX 1.1 track exports and generates synthetic point IDs. `gpx_import.py` plans per-track destinations before writing: explicit single-feed imports remain supported; combined exports resolve mapped messenger IDs or archived names to one configured feed, with optional `feed_mapping` for unknown/ambiguous tracks.
    `sqlite_import.py` reads the observed SPOT iOS schema in read-only mode without querying account data. It validates required columns and source identities, skips invalid fixes, and preserves message types and `ios:<device_pk>:<public_key>` IDs. It shares the routing/insertion/refresh workflow with GPX. `import_paths.py` enforces config-directory containment and supported extensions for both services.
 7. `www/spot-trace-history-card.js`: bundled custom Lovelace map card, queried through WebSockets, with device visibility controls, per-device overrides, and configurable tile URL/attribution. It uses a lightweight SVG/tile renderer rather than Leaflet.
-8. `trips.py`: authenticated WebSocket list/create/update/delete commands for named calendar-date ranges. `store.py` adds a persistent `trips` table alongside positions (UUID, unique name, start/end dates). Trips are shared across feeds and independent of config entries. The card applies a selected trip's dates to its existing track queries; dates use the browser timezone and device selections remain active. Editing preserves identity, cancel restores saved dates, and confirmed deletion removes only metadata. Duplicate names and invalid ranges roll back; mutations of missing IDs return `not_found`. Refresh reloads changes from other cards. Concurrent edits use last successful save; there is no optimistic version check yet. Multi-trip selection remains future work.
+8. `trips.py`: authenticated WebSocket list/create/update/delete commands for named calendar-date ranges. `store.py` adds a persistent `trips` table alongside positions (UUID, unique name, start/end dates). Trips are shared across feeds and independent of config entries. The card applies a selected trip's dates to its existing track queries; dates use the browser timezone and device selections remain active. Creation/editing use a native modal dialog with isolated name/date fields and inline errors. Editing preserves identity and accepts the unchanged name; cancel leaves saved values and the map filter untouched. Confirmed deletion removes only metadata. Duplicate names and invalid ranges roll back; mutations of missing IDs return `not_found`. Refresh reloads changes from other cards. Concurrent edits use last successful save; there is no optimistic version check yet. Multi-trip selection remains future work.
 
 ## Home Assistant surfaces
 
@@ -24,6 +24,15 @@ _Reference snapshot: 12 October 2026, based on the latest Device Management UI Z
 - Card URL is served automatically at `/spot_trace_history/spot-trace-history-card.js`; JavaScript registration appends the installed manifest version through HA's integration loader (currently `?v=0.5.2`).
 
 ## Device options behavior
+
+Trip participants are stored in the additive nullable `trips.devices` JSON
+column as a list of `{feed_id, device}` references. NULL preserves all-vehicles
+behavior for old trips; explicit empty lists are rejected. Create/update
+WebSocket payloads accept `devices`; old clients omitting it on update preserve
+existing participants. The dialog lists configured and previously saved
+unavailable devices. Filtering matches stable feed/messenger identities rather
+than config entry IDs and intersects participant membership with map visibility.
+No positions are copied or removed when membership changes.
 
 Options shape:
 

@@ -89,3 +89,14 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Added update/delete commands and map controls for selected trips. Editing preserves the trip ID; cancel restores saved dates. Deleting asks for confirmation, removes only trip metadata, and leaves the map's dates in custom mode without deleting positions.
 - Reused name/date validation, retained duplicate-name uniqueness, and added explicit missing-trip errors for stale selections. Concurrent edits currently use the last successful save; conflict detection and multi-trip selection remain future work.
 - Validation: 78 Python tests and 20 JavaScript tests pass, covering update rollback, preserved history, missing IDs, save failures, cancel, and confirmation. Live HA UI remains unverified.
+
+## Trip dialogs (13 October 2026)
+
+- Replaced inline trip name/edit fields with native modal create/edit dialogs. Editing prefills the existing name/date range and submits an update by trip ID; changing dates does not require a new name. Dialog date fields are independent of map dates until a successful save. Cancel/Escape closes without writing or changing the filter; errors retain input inside the dialog. Submission disables Save/Cancel while awaiting the server.
+- Updated frontend tests and added a backend regression for date changes with an unchanged name. Live HA rendering/focus behavior remains unverified.
+
+## Trip vehicles (13 October 2026)
+
+- Added vehicle checkboxes and an explicit all-vehicles option to create/edit dialogs. Trip filtering now includes membership as well as dates. Participants use stable feed ID + messenger ID references; removed devices remain visible as unavailable when editing so selections are not silently lost.
+- Added a nullable JSON column to trips without changing positions. Old trips retain all-vehicles semantics; explicit selections must contain a vehicle, duplicate references are normalized, and old client updates preserve membership when the field is omitted.
+- Validation: 86 Python tests and 23 JavaScript tests pass, including migration, persistence, payloads, feed isolation, excluded trailers, unavailable participants, and legacy behavior. Live HA dialog validation remains unverified.
