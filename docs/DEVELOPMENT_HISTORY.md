@@ -83,3 +83,9 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Added shared persistent trip definitions with unique names and inclusive calendar start/end dates, stored in an additive SQLite table. Trips do not change or copy positions and persist independently of feed entries.
 - Added authenticated WebSocket create/list commands and card controls to save the chosen dates and select a trip. Selection loads that range for visible devices; editing dates returns to custom mode. Refresh reloads trips from other cards. Dates use the existing browser-timezone interpretation; track query bounds remain enforced.
 - Added storage/migration, validation, WebSocket, and card behavior tests. Editing/deleting definitions and multi-trip filtering remain future work. Live HA rendering remains unverified.
+
+## Trip editing and deletion (13 October 2026)
+
+- Added update/delete commands and map controls for selected trips. Editing preserves the trip ID; cancel restores saved dates. Deleting asks for confirmation, removes only trip metadata, and leaves the map's dates in custom mode without deleting positions.
+- Reused name/date validation, retained duplicate-name uniqueness, and added explicit missing-trip errors for stale selections. Concurrent edits currently use the last successful save; conflict detection and multi-trip selection remain future work.
+- Validation: 78 Python tests and 20 JavaScript tests pass, covering update rollback, preserved history, missing IDs, save failures, cancel, and confirmation. Live HA UI remains unverified.
