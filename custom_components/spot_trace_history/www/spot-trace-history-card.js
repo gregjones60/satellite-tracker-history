@@ -11,17 +11,21 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.selected={};
     this.attachShadow({mode:'open'});
     this.shadowRoot.innerHTML=`<style>
-      :host{display:block} .wrap{padding:16px;color:var(--primary-text-color);background:var(--ha-card-background,var(--card-background-color,#fff));border-radius:var(--ha-card-border-radius,12px)}
+      :host{display:block;width:100%;height:100%;min-height:0;box-sizing:border-box} .wrap{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;box-sizing:border-box;padding:16px;color:var(--primary-text-color);background:var(--ha-card-background,var(--card-background-color,#fff));border-radius:var(--ha-card-border-radius,12px)}
       .head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}h3{margin:0 0 12px}
       .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
       label{display:flex;align-items:center;gap:5px;font-size:13px}input[type=date]{background:transparent;color:inherit;border:1px solid var(--divider-color,#aaa);border-radius:5px;padding:5px}
-      .map{height:420px;position:relative;overflow:hidden;background:#dce5e7;border-radius:8px;touch-action:none}
+      .map{flex:1 1 420px;min-height:200px;width:100%;position:relative;overflow:hidden;background:#dce5e7;border-radius:8px;touch-action:none}
+      .controls,.legend,h3,.note{flex-shrink:0}
+      .zoom-controls{position:absolute;top:10px;right:10px;z-index:1;display:flex;flex-direction:column;gap:4px}
+      .zoom-controls button{width:40px;height:40px;padding:0;font-size:24px;background:var(--ha-card-background,var(--card-background-color,#fff));box-shadow:0 1px 4px #0004}
+      .zoom-controls button:disabled{opacity:.45;cursor:default}
       .tiles{position:absolute;inset:0}.tiles img{position:absolute;width:256px;height:256px;max-width:none;pointer-events:none}
       svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
       .legend{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0}.swatch{display:inline-block;width:11px;height:11px;border-radius:50%}
       button{border:1px solid var(--divider-color,#aaa);border-radius:6px;background:transparent;color:inherit;padding:5px 10px;cursor:pointer}
       .note{font-size:12px;color:var(--secondary-text-color);margin-top:8px}
-      </style><div class="wrap"><h3></h3><div class="controls"><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="legend"></div><div class="map"><div class="tiles"></div><svg xmlns="http://www.w3.org/2000/svg"></svg></div><div class="note" role="status"></div></div>`;
+      </style><div class="wrap"><h3></h3><div class="controls"><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="legend"></div><div class="map"><div class="tiles"></div><svg xmlns="http://www.w3.org/2000/svg"></svg><div class="zoom-controls" role="group" aria-label="Map zoom"><button type="button" class="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><button type="button" class="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div></div><div class="note" role="status"></div></div>`;
     this.shadowRoot.querySelector('h3').textContent=config.title || 'SPOT Trace History';
     const today=new Date(), start=new Date(today.getTime()-this.days*86400000);
     const date=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -29,7 +33,10 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.shadowRoot.querySelector('.to').value=date(today);
     this.shadowRoot.querySelector('.refresh').onclick=()=>this.loadTracks();
     this.shadowRoot.querySelector('.fit').onclick=()=>{this.fit();this.draw()};
-    this.shadowRoot.querySelector('.map').addEventListener('wheel',e=>{e.preventDefault();this.zoom=Math.max(1,Math.min(17,this.zoom+(e.deltaY<0?1:-1)));this.draw()},{passive:false});
+    this.shadowRoot.querySelector('.zoom-in').onclick=()=>this.changeZoom(1);
+    this.shadowRoot.querySelector('.zoom-out').onclick=()=>this.changeZoom(-1);
+    this.shadowRoot.querySelector('.zoom-controls').addEventListener('pointerdown',e=>e.stopPropagation());
+    this.shadowRoot.querySelector('.map').addEventListener('wheel',e=>{e.preventDefault();this.changeZoom(e.deltaY<0?1:-1)},{passive:false});
     this.shadowRoot.querySelector('.map').addEventListener('pointerdown',e=>{this.drag=[e.clientX,e.clientY];e.currentTarget.setPointerCapture(e.pointerId)});
     this.shadowRoot.querySelector('.map').addEventListener('pointermove',e=>{if(!this.drag)return;const scale=256*Math.pow(2,this.zoom);this.cx-=(e.clientX-this.drag[0])/scale;this.cy-=(e.clientY-this.drag[1])/scale;this.drag=[e.clientX,e.clientY];this.draw()});
     this.shadowRoot.querySelector('.map').addEventListener('pointerup',()=>this.drag=null);
@@ -38,6 +45,7 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.resizeObserver=new ResizeObserver(()=>this.draw());this.resizeObserver.observe(this.shadowRoot.querySelector('.map'));
   }
   disconnectedCallback(){this.resizeObserver?.disconnect();this.tileNodes?.clear()}
+  changeZoom(delta){this.zoom=Math.max(1,Math.min(17,this.zoom+delta));this.draw()}
   connectedCallback(){if(this.resizeObserver && this.shadowRoot) this.resizeObserver.observe(this.shadowRoot.querySelector('.map'))}
   set hass(hass){this._hass=hass;if(!this.initialized){this.initialized=true;this.loadDevices()}}
   async loadDevices(){
@@ -76,7 +84,10 @@ class SpotTraceHistoryCard extends HTMLElement {
     const el=this.shadowRoot.querySelector('.map'),w=el.clientWidth||600,h=el.clientHeight||420;
     this.zoom=Math.max(1,Math.min(16,Math.floor(Math.log2(Math.min(w/(Math.max(.00001,maxx-minx)*320),h/(Math.max(.00001,maxy-miny)*320))))));
   }
-  draw(){if(!this.shadowRoot)return;const map=this.shadowRoot.querySelector('.map'),w=map.clientWidth,h=map.clientHeight;if(!w||!h)return;
+  draw(){if(!this.shadowRoot)return;
+    this.shadowRoot.querySelector('.zoom-in').disabled=this.zoom>=17;
+    this.shadowRoot.querySelector('.zoom-out').disabled=this.zoom<=1;
+    const map=this.shadowRoot.querySelector('.map'),w=map.clientWidth,h=map.clientHeight;if(!w||!h)return;
     const z=this.zoom,scale=256*2**z, tiles=this.shadowRoot.querySelector('.tiles');
     const left=this.cx*scale-w/2,top=this.cy*scale-h/2;
     // Reuse existing image elements when only the position changes.

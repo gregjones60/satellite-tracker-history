@@ -58,6 +58,16 @@ devices:
 
 The card uses XML messenger IDs when present, or GPX track names for archived-only devices. For unambiguous per-feed overrides, use a key in the form `<entry_id>:<messenger_id>`. The card provides a visibility checkbox for each device. New devices appear after their feed is configured and polled, and the card is reloaded.
 
+The map has **+ / − zoom buttons**, mouse-wheel zoom, drag-to-pan, and **Fit
+routes**. The card fills its parent's width and available height, with the map
+using the space below the controls. When the dashboard provides no fixed parent
+height, the map uses a 420px fallback basis. Its minimum map height is 200px.
+For a full-width view, place this card as the only card in a
+[Panel view](https://www.home-assistant.io/dashboards/panel/). Full-height sizing
+requires the containing layout to supply a height; a normal dashboard column
+still controls the card's available width and space. Live HA layout validation
+remains necessary.
+
 ## Import GPX history
 
 Put exports under `/config/spot_exports/` and run **Developer Tools → Actions**:
