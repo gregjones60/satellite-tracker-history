@@ -84,9 +84,18 @@ calendar days; the existing track query limit of 366 elapsed days and 50,000
 positions per device still applies. Creating a trip does not copy or alter GPS
 records; future positions inside its period are included automatically.
 
-This first version supports creating and selecting trips. Renaming, changing
-saved dates, deleting definitions, and selecting multiple trips are future work.
-Live Home Assistant UI validation remains necessary.
+To change a saved trip, select it and click **Edit trip**. Change its name or
+From/To dates, then click **Save changes**. **Cancel edit** restores the saved
+dates without writing changes. Editing keeps the existing trip ID.
+
+To remove a trip, select it and click **Delete trip**, then confirm. This removes
+only its definition; all GPS records remain. The displayed dates remain as
+custom dates, so the current map does not disappear. Click **Refresh** to see
+changes made by another card. Missing trips or duplicate names produce an error
+instead of silently replacing another trip.
+
+Selecting multiple trips remains future work. Live Home Assistant UI validation
+remains necessary.
 
 ## Import GPX history
 

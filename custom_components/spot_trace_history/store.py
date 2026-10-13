@@ -22,7 +22,8 @@ class Store:
             rows = db.execute('SELECT id,name,start_date,end_date FROM trips ORDER BY start_date DESC,name').fetchall()
         return [dict(zip(('id', 'name', 'start_date', 'end_date'), row)) for row in rows]
 
-    def create_trip(self, name, start_date, end_date):
+    @staticmethod
+    def _validate_trip(name, start_date, end_date):
         name = name.strip()
         if not name or len(name) > 100:
             raise ValueError('Trip name must contain 1–100 characters')
@@ -34,6 +35,10 @@ class Store:
             raise ValueError('Trip dates must be valid dates in YYYY-MM-DD format') from exc
         if end < start or (end - start).days >= 366:
             raise ValueError('Choose a trip period of 1–366 days')
+        return name
+
+    def create_trip(self, name, start_date, end_date):
+        name = self._validate_trip(name, start_date, end_date)
         trip = {'id': str(uuid4()), 'name': name, 'start_date': start_date, 'end_date': end_date}
         try:
             with self.connect() as db:
@@ -41,6 +46,23 @@ class Store:
         except sqlite3.IntegrityError as exc:
             raise ValueError('A trip with this name already exists') from exc
         return trip
+
+    def update_trip(self, trip_id, name, start_date, end_date):
+        name = self._validate_trip(name, start_date, end_date)
+        try:
+            with self.connect() as db:
+                cursor = db.execute('UPDATE trips SET name=?,start_date=?,end_date=? WHERE id=?',
+                                    (name, start_date, end_date, trip_id))
+                if cursor.rowcount != 1:
+                    raise KeyError('Trip not found; refresh the saved-trip list')
+        except sqlite3.IntegrityError as exc:
+            raise ValueError('A trip with this name already exists') from exc
+        return {'id': trip_id, 'name': name, 'start_date': start_date, 'end_date': end_date}
+
+    def delete_trip(self, trip_id):
+        with self.connect() as db:
+            if db.execute('DELETE FROM trips WHERE id=?', (trip_id,)).rowcount != 1:
+                raise KeyError('Trip not found; refresh the saved-trip list')
 
     def insert(self, feed, points):
         with self.connect() as db:
