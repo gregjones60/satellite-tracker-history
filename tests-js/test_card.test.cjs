@@ -57,3 +57,43 @@ test('an existing card definition and picker entry are preserved', () => {
   assert.equal(c.context.window.customCards.length,1);
   assert.equal(c.context.window.customCards[0],pickerEntry);
 });
+
+test('zoom buttons and wheel change scale, respect bounds, and do not drag the map', () => {
+  const c=cardContext();
+  c.context.ResizeObserver=class {observe() {} disconnect() {}};
+  vm.runInContext(src,c.context);
+  const Card=c.registered.get('spot-trace-history-card');
+  const card=new Card();
+  const nodes=new Map();
+  const node=selector=>{
+    if(!nodes.has(selector)) nodes.set(selector,{
+      clientWidth:0, clientHeight:0, listeners:{},
+      addEventListener(name,handler){this.listeners[name]=handler},
+    });
+    return nodes.get(selector);
+  };
+  card.attachShadow=()=>{card.shadowRoot={querySelector:node}};
+  card.setConfig({type:'custom:spot-trace-history-card'});
+  // A zero-size map lets the real draw() update controls without tile rendering.
+  node('.zoom-in').onclick();
+  assert.equal(card.zoom,7);
+  node('.zoom-out').onclick();
+  assert.equal(card.zoom,6);
+  let prevented=false;
+  node('.map').listeners.wheel({deltaY:-1,preventDefault(){prevented=true}});
+  assert.equal(card.zoom,7);
+  assert.equal(prevented,true);
+  card.zoom=17;
+  node('.zoom-in').onclick();
+  assert.equal(card.zoom,17);
+  assert.equal(node('.zoom-in').disabled,true);
+  assert.equal(node('.zoom-out').disabled,false);
+  card.zoom=1;
+  node('.zoom-out').onclick();
+  assert.equal(card.zoom,1);
+  assert.equal(node('.zoom-out').disabled,true);
+  let stopped=false;
+  node('.zoom-controls').listeners.pointerdown({stopPropagation(){stopped=true}});
+  assert.equal(stopped,true);
+  assert.equal(card.drag,undefined);
+});
