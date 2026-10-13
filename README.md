@@ -25,6 +25,20 @@ latest coordinates. These details come from the local archive, including GPX
 imports. They do not guarantee a fresh fix from the tracker.
 
 You can change its friendly name or disable its Home Assistant device tracker.
+The **Icon** picker accepts Material Design Icons such as `mdi:car-estate` or
+`mdi:caravan`. Clear it to restore the default icon. Each tracker is also
+associated with a native Home Assistant device, with a stable identity across
+renames and integration reloads.
+
+For the standard settings shown in Home Assistant's entity editor—entity ID,
+area, labels, enabled/visible flags, and voice assistant exposure—open the tracker
+under **Settings → Devices & services → Entities**, then open its settings.
+You can assign an area or labels on its native device page too. Native entity
+name/icon overrides take precedence over the integration's defaults; clear an
+override there if you want to use the value configured through Manage devices.
+These settings are managed by HA's registries, so they are not duplicated in
+the integration options. See [HA entity customization](https://www.home-assistant.io/docs/configuration/customizing-devices/).
+
 Disabling the tracker keeps collecting positions and preserves map history.
 Devices with the same name are distinguished by messenger ID in the selector.
 This UI still needs validation in a live Home Assistant instance.

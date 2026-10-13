@@ -9,6 +9,7 @@ _Reference snapshot: 12 October 2026, based on the latest Device Management UI Z
 3. `__init__.py`: `SpotCoordinator` polls each feed every 300 seconds, inserts points into SQLite and publishes the latest position per messenger. It registers the GPX import service, WebSocket commands, and bundled card JavaScript. Backfill scaffolding exists but is not scheduled; do not describe full pagination as implemented.
 4. `store.py`: SQLite table `positions` keyed by `(feed,id)` with a uniqueness index on `(feed,device,time,lat,lon)`. Provides insert, latest, device listing, names and bounded track queries. DB path: HA config directory `/config/spot_trace_history.sqlite` in a typical deployment.
 5. `device_tracker.py`: creates a `TrackerEntity` for each discovered messenger ID from the coordinator, except IDs disabled through config entry options. Name can be overridden. Tracker unique ID is `feed_id + '_' + messenger_id`.
+   An optional integration icon is exposed as the entity default. Native device identifiers use `(DOMAIN, tracker_unique_id)` and manufacturer SPOT, enabling standard device area/label surfaces. Entity ID, visibility, native enabled flags, voice exposure, and native name/icon overrides remain in HA's registries. Icons are selected through the standard HA IconSelector in device options.
 6. `gpx.py`: parses GPX 1.1 track exports and generates synthetic point IDs. `gpx_import.py` plans per-track destinations before writing: explicit single-feed imports remain supported; combined exports resolve mapped messenger IDs or archived names to one configured feed, with optional `feed_mapping` for unknown/ambiguous tracks.
    `sqlite_import.py` reads the observed SPOT iOS schema in read-only mode without querying account data. It validates required columns and source identities, skips invalid fixes, and preserves message types and `ios:<device_pk>:<public_key>` IDs. It shares the routing/insertion/refresh workflow with GPX. `import_paths.py` enforces config-directory containment and supported extensions for both services.
 7. `www/spot-trace-history-card.js`: bundled custom Lovelace map card, queried through WebSockets, with device visibility controls, per-device overrides, and configurable tile URL/attribution. It uses a lightweight SVG/tile renderer rather than Leaflet.
@@ -37,7 +38,7 @@ No positions are copied or removed when membership changes.
 Options shape:
 
 ```json
-{"devices": {"MESSENGER_ID": {"name": "Camper", "enabled": true}}}
+{"devices": {"MESSENGER_ID": {"name": "Camper", "enabled": true, "icon": "mdi:caravan"}}}
 ```
 
 Options updates trigger a config-entry reload. The flow uses HA's read-only `config_entry` property, supplied by its options-flow manager. Disabling the tracker does **not** delete historical positions or filter the map card. Device lists depend on already-stored positions, so a new feed with no messages may show no devices. Metadata is loaded through the executor from the selected feed's SQLite archive, including GPX positions; latest means latest archived fix, not necessarily current live location. Friendly names never replace the messenger ID used for settings.

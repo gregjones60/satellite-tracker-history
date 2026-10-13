@@ -62,6 +62,10 @@ def flow_module(monkeypatch):
     selector.SelectSelectorMode = SelectSelectorMode
     selector.SelectOptionDict = dict
     selector.SelectSelectorConfig = dict
+    class IconSelector:
+        def __call__(self, value):
+            return vol.Schema(str)(value)
+    selector.IconSelector = IconSelector
     monkeypatch.setitem(sys.modules, entries.__name__, entries)
     monkeypatch.setitem(sys.modules, core.__name__, core)
     monkeypatch.setitem(sys.modules, selector.__name__, selector)
@@ -145,7 +149,7 @@ async def test_select_device_shows_defaults_and_metadata(flow, options, defaults
     result = await flow.async_step_manage_devices({"device": "vehicle"})
     assert result["type"] == "form"
     assert result["step_id"] == "device"
-    assert result["data_schema"]({}) == defaults
+    assert result["data_schema"]({}) == {**defaults, 'icon': ''}
     assert result["description_placeholders"] == {
         "feed_id": "feed-a", "device_id": "vehicle", "message_count": "1",
         "first_position": "1970-01-01 00:01:40 UTC",
@@ -245,3 +249,17 @@ async def test_options_translation_placeholders_match_the_form(flow):
 @pytest.mark.parametrize("timestamp", [None, 10**100])
 def test_unavailable_or_unrepresentable_time_has_a_display_fallback(flow_module, timestamp):
     assert flow_module.SpotOptionsFlow._position_time(timestamp) == "—"
+
+
+@pytest.mark.asyncio
+async def test_icon_selection_persists_and_can_be_cleared(flow):
+    flow.config_entry.options = {'devices': {'vehicle': {'name':'Vehicle','enabled':True,
+                                                        'icon':'mdi:car-estate','future_setting':'keep'}}}
+    form = await flow.async_step_manage_devices({'device':'vehicle'})
+    assert form['data_schema']({})['icon'] == 'mdi:car-estate'
+    result = await flow.async_step_device({'name':'Vehicle','enabled':True,'icon':'mdi:caravan'})
+    assert result['data']['devices']['vehicle']['icon'] == 'mdi:caravan'
+    assert result['data']['devices']['vehicle']['future_setting'] == 'keep'
+    result = await flow.async_step_device({'name':'Vehicle','enabled':True,'icon':''})
+    assert 'icon' not in result['data']['devices']['vehicle']
+    assert result['data']['devices']['vehicle']['future_setting'] == 'keep'

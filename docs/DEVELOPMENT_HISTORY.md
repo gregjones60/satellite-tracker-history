@@ -100,3 +100,9 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Added vehicle checkboxes and an explicit all-vehicles option to create/edit dialogs. Trip filtering now includes membership as well as dates. Participants use stable feed ID + messenger ID references; removed devices remain visible as unavailable when editing so selections are not silently lost.
 - Added a nullable JSON column to trips without changing positions. Old trips retain all-vehicles semantics; explicit selections must contain a vehicle, duplicate references are normalized, and old client updates preserve membership when the field is omitted.
 - Validation: 86 Python tests and 23 JavaScript tests pass, including migration, persistence, payloads, feed isolation, excluded trailers, unavailable participants, and legacy behavior. Live HA dialog validation remains unverified.
+
+## Icons and native HA device settings (13 October 2026)
+
+- Added the standard HA IconSelector to device options; icons persist per messenger and are exposed as tracker defaults. Clearing restores the automatic icon. Options saves preserve unrelated per-device settings.
+- Added native device info with stable feed/messenger identity, name, and SPOT manufacturer. Area/labels and the screenshot's entity ID, visibility, enabled, and voice controls use HA's standard entity/device settings. Native name/icon overrides remain authoritative; no parallel registry settings are stored in integration options.
+- Synchronized English translations and added options/tracker tests for icon persistence/clearing, identity across renames/feeds, disabled tracker suppression, and later discovery. Validation: 89 Python tests and 23 JavaScript tests pass; live HA registry/UI behavior remains unverified.
