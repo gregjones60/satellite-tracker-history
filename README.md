@@ -135,6 +135,54 @@ devices are separate from those archived names.
 import the whole file separately into both feeds with top-level `feed_id` values;
 that would assign all its tracks to each selected feed.
 
+## Import the SPOT iOS database
+
+Copy a complete SPOT iOS SQLite export to `/config/spot_exports/spot_app.db`.
+After updating the integration and restarting Home Assistant, run
+**Developer Tools → Actions → SPOT Trace History: Import SPOT iOS database**:
+
+```yaml
+action: spot_trace_history.import_sqlite
+data:
+  filename: spot_exports/spot_app.db
+  device_mapping:
+    Bluey: "YOUR_VEHICLE_MESSENGER_ID"
+    Ultimate: "YOUR_TRAILER_MESSENGER_ID"
+  feed_mapping:
+    Bluey: "YOUR_VEHICLE_FEED_ID"
+    Ultimate: "YOUR_TRAILER_FEED_ID"
+```
+
+Mapping keys are the app's device names, with surrounding whitespace trimmed.
+The app database's numeric device IDs are separate from XML messenger IDs.
+Both feeds must already be configured. Like GPX imports, you can omit
+`feed_mapping` when the mapped messenger IDs or archived names identify exactly
+one feed. `feed_id` or `entry_id` instead assigns all records to one destination.
+The object fields accept YAML or JSON mappings as shown in the GPX section.
+
+The importer reads `devices`, `messages`, and `message_types` from the observed
+SPOT iOS schema, preserving timestamps, coordinates, names, and message types.
+It opens the source read-only and never queries account/password tables.
+Invalid coordinates or timestamps are skipped; unsupported databases, duplicate
+device names, missing device/type records, and ambiguous routing produce errors
+before records are inserted. Empty exports or exports with no valid locations
+also produce an error. Supported extensions are `.db`, `.sqlite`, and `.sqlite3`.
+Repeated imports and matching fixes already collected through XML/GPX are
+deduplicated. Affected trackers and history queries refresh after import.
+
+Use a complete, consistent export, rather than copying an actively written app
+database on its own. If the export includes `-wal`/`-shm` companion files, keep
+them with the database under their original matching names. Keep the original
+backup outside Git: it can include account credentials. Files must be inside
+the Home Assistant config directory; symlinks escaping that directory are
+rejected. No direct browser file-upload page is provided; copy the export into
+the config directory before running the action.
+
+Validated against the supplied export: 21,011 valid fixes from 21,012 messages
+were imported into a temporary archive, and a second import added no duplicates.
+The source file remained unchanged. Live Home Assistant action/UI behavior
+still needs validation.
+
 ## Limitations
 
 Experimental, not live-tested. Latest 50 XML messages polled per feed; complete XML pagination is not implemented. The historical website export must be imported manually. Card queries are limited to 366 days and 50,000 points per device. Back up `/config/spot_trace_history.sqlite`. All map tiles require internet connectivity and are served by OpenStreetMap.
