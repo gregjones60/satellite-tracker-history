@@ -67,3 +67,7 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Added `spot_trace_history.import_sqlite` using the observed iOS tables (`devices`, `messages`, `message_types`), Unix-second timestamps, text coordinates, source message keys, and preserved message types. Account/password tables are never queried. The source is opened read-only.
 - Reused GPX destination planning and coordinator refreshes, retaining single-feed targeting and per-name device/feed mappings. Invalid locations are skipped; unsupported schemas, duplicate device names, orphaned messages, and ambiguous routing abort before archive writes. Extracted shared config-directory path validation and excluded local `db/` exports from Git.
 - Added synthetic parser/import/path tests. Full checks: 64 Python tests, 10 JavaScript tests passed. Two imports of the real export into a temporary archive retained 21,011 fixes (8,886 Ultimate, 12,125 Bluey); one invalid fix was skipped and the source checksum remained unchanged. No private database contents were added to tests or source control. Live HA and hassfest execution remain unverified.
+
+## Duplicate frontend script registration (13 October 2026)
+
+- Wrapped the card script in a private scope and guarded custom-element and card-picker registration. Added behavioral tests that load the script twice and load it after an existing definition. An old manual `/local/` resource must still be removed: existing definitions cannot be replaced on a loaded page, and older scripts lack these guards.
