@@ -47,6 +47,41 @@ def test_duplicate_name_returns_clear_error(tmp_path):
     assert len(store.list_trips()) == 1
 
 
+def test_edit_and_delete_preserve_trip_identity_other_trips_and_positions(tmp_path):
+    store = Store(tmp_path / 'history.sqlite')
+    store.insert('feed', [{'id':'1','device':'d','name':'Device','time':100,
+                          'lat':-37,'lon':145,'type':'TRACK'}])
+    trip = store.create_trip('Camping','2026-01-01','2026-01-02')
+    other = store.create_trip('Weekend','2026-02-01','2026-02-02')
+    updated = store.update_trip(trip['id'],'  Summer camping  ','2026-01-03','2026-01-05')
+    assert updated == {**trip,'name':'Summer camping','start_date':'2026-01-03','end_date':'2026-01-05'}
+    assert store.list_trips() == [other,updated]
+    # Saving without renaming must work despite the unique-name constraint.
+    assert store.update_trip(updated['id'],updated['name'],updated['start_date'],updated['end_date']) == updated
+    store.delete_trip(trip['id'])
+    assert Store(store.path).list_trips() == [other]
+    assert store.list_devices('feed')[0]['count'] == 1
+
+
+@pytest.mark.parametrize('name,end', [('Weekend','2026-01-02'), ('Camping','2025-01-01')])
+def test_invalid_update_rolls_back(tmp_path,name,end):
+    store = Store(tmp_path / 'history.sqlite')
+    trip = store.create_trip('Camping','2026-01-01','2026-01-02')
+    other = store.create_trip('Weekend','2026-02-01','2026-02-02')
+    with pytest.raises(ValueError):
+        store.update_trip(trip['id'],name,'2026-01-01',end)
+    assert store.list_trips() == [other,trip]
+
+
+def test_missing_trip_mutations_do_not_create_definitions(tmp_path):
+    store = Store(tmp_path / 'history.sqlite')
+    with pytest.raises(KeyError,match='Trip not found'):
+        store.update_trip('missing','Camping','2026-01-01','2026-01-02')
+    with pytest.raises(KeyError,match='Trip not found'):
+        store.delete_trip('missing')
+    assert store.list_trips() == []
+
+
 @pytest.fixture
 def websocket_module(monkeypatch):
     components = types.ModuleType('homeassistant.components')
@@ -90,3 +125,33 @@ async def test_websocket_create_list_and_validation(websocket_module,tmp_path):
     await websocket_module.ws_create_trip(hass,connection,{**message,'end_date':'2025-01-01'})
     assert connection.send_error.call_args.args[:2] == (1,'invalid_trip')
     connection.send_result.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_websocket_update_delete_and_stale_selection(websocket_module,tmp_path):
+    async def execute(fn,*args):
+        return fn(*args)
+    hass = types.SimpleNamespace(config=types.SimpleNamespace(path=lambda name:str(tmp_path/name)),
+                                 async_add_executor_job=execute)
+    store = Store(tmp_path / 'spot_trace_history.sqlite')
+    trip = store.create_trip('Camping','2026-01-01','2026-01-02')
+    connection = Mock()
+    update = {'id':1,'type':'spot_trace_history/update_trip','trip_id':trip['id'],
+              'name':'Summer','start_date':'2026-01-02','end_date':'2026-01-03'}
+    websocket_module.ws_update_trip.schema({k:v for k,v in update.items() if k!='id'})
+    await websocket_module.ws_update_trip(hass,connection,update)
+    assert connection.send_result.call_args.args[1]['name'] == 'Summer'
+    connection.reset_mock()
+    await websocket_module.ws_update_trip(hass,connection,{**update,'name':' '})
+    assert connection.send_error.call_args.args[:2] == (1,'invalid_trip')
+    connection.reset_mock()
+    delete = {'id':2,'type':'spot_trace_history/delete_trip','trip_id':trip['id']}
+    websocket_module.ws_delete_trip.schema({k:v for k,v in delete.items() if k!='id'})
+    await websocket_module.ws_delete_trip(hass,connection,delete)
+    connection.send_result.assert_called_with(2,{'deleted':trip['id']})
+    assert store.list_trips() == []
+    for fn,msg in [(websocket_module.ws_delete_trip,delete),(websocket_module.ws_update_trip,update)]:
+        connection.reset_mock()
+        await fn(hass,connection,msg)
+        assert connection.send_error.call_args.args[:2] == (msg['id'],'not_found')
+        connection.send_result.assert_not_called()

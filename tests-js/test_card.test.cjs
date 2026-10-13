@@ -115,7 +115,7 @@ function tripCard() {
   card.attachShadow=()=>{card.shadowRoot={querySelector:node}};
   card.setConfig({type:'custom:spot-trace-history-card'});
   card.fit=()=>{};card.draw=()=>{};
-  return {card,node};
+  return {card,node,window:c.context.window};
 }
 
 test('saving dates persists a named trip and selecting it filters device queries', async () => {
@@ -165,4 +165,71 @@ test('trip list loads saved dates and treats names as plain text', async () => {
   assert.equal(node('.trip-select').children[0].textContent,'Custom dates');
   assert.match(node('.trip-select').children[1].textContent,/<img onerror=bad\(\)>/);
   assert.equal(node('.trip-select').children[1].innerHTML,undefined);
+});
+
+test('editing updates the selected trip without creating a second definition', async () => {
+  const {card,node}=tripCard();
+  const trip={id:'1',name:'Camping',start_date:'2026-01-01',end_date:'2026-01-02'};
+  card.trips=[trip];card.renderTrips('1');card.editTrip();
+  assert.equal(node('.trip-name').value,'Camping');
+  assert.equal(node('.save-trip').textContent,'Save changes');
+  node('.trip-name').value='Summer';node('.to').value='2026-01-03';
+  node('.to').onchange();
+  assert.equal(node('.trip-select').value,'1');
+  card._hass={callWS:async msg=>{
+    assert.equal(msg.type,'spot_trace_history/update_trip');
+    assert.equal(msg.trip_id,'1');
+    return {...trip,name:msg.name,end_date:msg.end_date};
+  }};
+  await card.saveTrip();
+  assert.equal(card.trips.length,1);
+  assert.equal(card.trips[0].name,'Summer');
+  assert.equal(card.trips[0].end_date,'2026-01-03');
+  assert.equal(card.editingTrip,null);
+});
+
+test('cancelling an edit restores saved dates without a mutation request', async () => {
+  const {card,node}=tripCard();
+  card.trips=[{id:'1',name:'Camping',start_date:'2026-01-01',end_date:'2026-01-02'}];
+  card.renderTrips('1');card.editTrip();
+  node('.to').value='2026-01-20';node('.trip-name').value='Changed';
+  card._hass={callWS:async ()=>{throw new Error('unexpected mutation')}};
+  await card.cancelTripEdit();
+  assert.equal(card.editingTrip,null);
+  assert.equal(node('.to').value,'2026-01-02');
+  assert.equal(node('.trip-name').value,'');
+  assert.equal(card.trips[0].name,'Camping');
+});
+
+test('failed edits keep the editable values and selected trip intact', async () => {
+  const {card,node}=tripCard();
+  card.trips=[{id:'1',name:'Camping',start_date:'2026-01-01',end_date:'2026-01-02'}];
+  card.renderTrips('1');card.editTrip();node('.trip-name').value='Duplicate';
+  card._hass={callWS:async ()=>{throw new Error('name already exists')}};
+  await card.saveTrip();
+  assert.equal(card.editingTrip,'1');
+  assert.equal(card.trips[0].name,'Camping');
+  assert.equal(node('.trip-name').value,'Duplicate');
+  assert.equal(node('.save-trip').disabled,false);
+});
+
+test('deleting requires confirmation and retains displayed dates as custom dates', async () => {
+  const {card,node,window}=tripCard();
+  card.trips=[{id:'1',name:'Camping',start_date:'2026-01-01',end_date:'2026-01-02'}];
+  card.renderTrips('1');await card.selectTrip();
+  const calls=[];
+  card._hass={callWS:async msg=>{calls.push(msg);return {deleted:'1'}}};
+  window.confirm=()=>false;
+  await card.deleteTrip();
+  assert.equal(calls.length,0);
+  assert.equal(card.trips.length,1);
+  window.confirm=message=>{assert.match(message,/GPS records will be kept/);return true};
+  await card.deleteTrip();
+  assert.equal(calls[0].type,'spot_trace_history/delete_trip');
+  assert.equal(calls[0].trip_id,'1');
+  assert.equal(card.trips.length,0);
+  assert.equal(node('.trip-select').value,'');
+  assert.equal(node('.from').value,'2026-01-01');
+  assert.equal(node('.to').value,'2026-01-02');
+  assert.equal(node('.delete-trip').disabled,true);
 });

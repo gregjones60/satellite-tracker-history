@@ -22,7 +22,8 @@ _Status as of 12 October 2026. Proposed priorities, not committed release dates.
 ## P2 — Feed management and history
 
 - [x] Create named date periods as trips and filter the map by a selected trip. Saved globally in SQLite; tested with HA/DOM doubles, live UI validation remains.
-- [ ] Add editing/deleting trip definitions and consider multi-trip filtering and timezone handling.
+- [x] Add editing/deleting trip definitions with cancel/confirmation and archive-preservation tests. Live UI validation remains.
+- [ ] Consider multi-trip filtering, timezone handling, and concurrent-edit conflict detection.
 
 - [x] Import SPOT iOS SQLite history with per-device routing, validation, and deduplication. Tested against the supplied export; live HA action validation remains.
 
