@@ -80,7 +80,7 @@ test('zoom buttons and wheel change scale, respect bounds, and do not drag the m
   node('.zoom-out').onclick();
   assert.equal(card.zoom,6);
   let prevented=false;
-  node('.map').listeners.wheel({deltaY:-1,preventDefault(){prevented=true}});
+  node('.map').listeners.wheel({deltaY:-100,preventDefault(){prevented=true}});
   assert.equal(card.zoom,7);
   assert.equal(prevented,true);
   card.zoom=17;
@@ -342,4 +342,58 @@ test('fit routes handles many points across multiple vehicles without spreading 
   assert.equal(Number.isFinite(card.cx),true);
   assert.equal(Number.isFinite(card.cy),true);
   assert.equal(card.zoom>=1&&card.zoom<=16,true);
+});
+
+function wheelEvent(deltaY,timeStamp,extra={}) {
+  return {deltaY,timeStamp,deltaMode:0,preventDefault(){},...extra};
+}
+
+test('trackpad movements accumulate and rapid wheel events do not race through zoom levels', () => {
+  const {card}=tripCard();
+  for(let i=0;i<9;i++)card.wheelZoom(wheelEvent(-10,i*10));
+  assert.equal(card.zoom,6);
+  card.wheelZoom(wheelEvent(-10,90));
+  assert.equal(card.zoom,7);
+  for(let i=100;i<200;i+=10)card.wheelZoom(wheelEvent(-100,i));
+  assert.equal(card.zoom,7);
+  card.wheelZoom(wheelEvent(-1,220));
+  assert.equal(card.zoom,8);
+  // No timer applies additional zoom after the gesture stops.
+  assert.equal(card.wheelDelta,0);
+});
+
+test('wheel zoom preserves the map location under the cursor and respects zoom bounds', () => {
+  const {card,node}=tripCard();
+  node('.map').getBoundingClientRect=()=>({left:100,top:50,width:800,height:400});
+  const anchor={clientX:700,clientY:100};
+  const point=()=>[card.cx+200/(256*2**card.zoom),card.cy-150/(256*2**card.zoom)];
+  const before=point();
+  card.wheelZoom(wheelEvent(-100,0,anchor));
+  assert.equal(card.zoom,7);
+  assert.ok(Math.abs(point()[0]-before[0])<1e-12);
+  assert.ok(Math.abs(point()[1]-before[1])<1e-12);
+  card.wheelZoom(wheelEvent(100,200,anchor));
+  assert.equal(card.zoom,6);
+  assert.ok(Math.abs(card.cx-.5)<1e-12);
+  assert.ok(Math.abs(card.cy-.5)<1e-12);
+  card.zoom=17;
+  const centre=[card.cx,card.cy];
+  card.wheelZoom(wheelEvent(-100,400,anchor));
+  assert.equal(card.zoom,17);
+  assert.deepEqual([card.cx,card.cy],centre);
+});
+
+test('line and page wheel units normalize and zero movement never zooms', () => {
+  const {card}=tripCard();
+  card.wheelZoom(wheelEvent(0,0));assert.equal(card.zoom,6);
+  card.wheelZoom(wheelEvent(3,10,{deltaMode:1}));assert.equal(card.zoom,5);
+  card.wheelZoom(wheelEvent(-1,250,{deltaMode:2}));assert.equal(card.zoom,6);
+});
+
+test('wheel gesture pauses and direction changes discard leftover movement', () => {
+  const {card}=tripCard();
+  card.wheelZoom(wheelEvent(-60,0));
+  card.wheelZoom(wheelEvent(-60,300));assert.equal(card.zoom,6);
+  card.wheelZoom(wheelEvent(60,310));assert.equal(card.zoom,6);
+  card.wheelZoom(wheelEvent(40,320));assert.equal(card.zoom,5);
 });

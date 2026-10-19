@@ -84,6 +84,12 @@ remains necessary.
 
 ## Named trips
 
+Mouse-wheel zoom accumulates small movements and limits rapid zoom steps, so
+trackpads no longer jump a level for every tiny event. Zoom stays centred on the
+location under the pointer; the +/− buttons remain centred on the map. Pixel,
+line, and page wheel events are normalized, and stopping a gesture does not
+schedule extra zoom steps.
+
 Use the **Year** dropdown beside the date fields to show January 1 through
 December 31 of a particular year. Years are drawn from the first/last archived
 positions of devices included by the card, plus the current year; a listed year

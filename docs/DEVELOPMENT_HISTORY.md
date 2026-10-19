@@ -112,3 +112,9 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Added a Year dropdown beside the map dates, populated from included devices' archive ranges plus the current year. Selection applies the full calendar year, clears trip restrictions, retains visibility choices, and refreshes tracks. Manual dates and trip selection synchronize the year control.
 - Changed route fitting to iterative bounds so large yearly queries across several vehicles do not exceed JavaScript argument limits. Existing query caps remain.
 - Validation: 89 Python tests and 26 JavaScript tests pass, including leap-year boundaries, empty metadata, card-scoped years, and 160,000-point route fitting. Live HA UI remains unverified.
+
+## Mouse zoom precision (19 October 2026)
+
+- Replaced per-event wheel jumps with normalized accumulated movement, one-step caps, and a 120ms minimum between wheel zoom steps. Small gestures no longer cause immediate level changes; pauses/direction changes discard leftover movement. No delayed timers continue zooming after input stops.
+- Anchored wheel zoom under the pointer by adjusting the map centre around the new scale. Integer tile zoom levels and centre-based +/− controls are retained.
+- Added tests for trackpad accumulation/rate limiting, cursor anchoring, bounds, delta units, zero movement, and gesture resets. Live HA/browser gesture feel remains unverified.

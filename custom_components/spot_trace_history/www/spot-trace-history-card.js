@@ -49,16 +49,44 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.shadowRoot.querySelector('.zoom-in').onclick=()=>this.changeZoom(1);
     this.shadowRoot.querySelector('.zoom-out').onclick=()=>this.changeZoom(-1);
     this.shadowRoot.querySelector('.zoom-controls').addEventListener('pointerdown',e=>e.stopPropagation());
-    this.shadowRoot.querySelector('.map').addEventListener('wheel',e=>{e.preventDefault();this.changeZoom(e.deltaY<0?1:-1)},{passive:false});
+    this.shadowRoot.querySelector('.map').addEventListener('wheel',e=>this.wheelZoom(e),{passive:false});
     this.shadowRoot.querySelector('.map').addEventListener('pointerdown',e=>{this.drag=[e.clientX,e.clientY];e.currentTarget.setPointerCapture(e.pointerId)});
     this.shadowRoot.querySelector('.map').addEventListener('pointermove',e=>{if(!this.drag)return;const scale=256*Math.pow(2,this.zoom);this.cx-=(e.clientX-this.drag[0])/scale;this.cy-=(e.clientY-this.drag[1])/scale;this.drag=[e.clientX,e.clientY];this.draw()});
     this.shadowRoot.querySelector('.map').addEventListener('pointerup',()=>this.drag=null);
     this.zoom=6;this.cx=.5;this.cy=.5;this.tracks=[];
+    this.wheelDelta=0;this.wheelLastEvent=null;this.wheelLastZoom=-Infinity;
     this.tileNodes=new Map();this.tileFailures=0;this.lastTileError=0;this.lastViewKey='';
     this.resizeObserver=new ResizeObserver(()=>this.draw());this.resizeObserver.observe(this.shadowRoot.querySelector('.map'));
   }
   disconnectedCallback(){this.resizeObserver?.disconnect();this.tileNodes?.clear()}
-  changeZoom(delta){this.zoom=Math.max(1,Math.min(17,this.zoom+delta));this.draw()}
+  changeZoom(delta,anchor=null){
+    const next=Math.max(1,Math.min(17,this.zoom+delta));
+    if(anchor&&next!==this.zoom){
+      const map=this.shadowRoot.querySelector('.map'),rect=map.getBoundingClientRect();
+      const x=anchor.x-rect.left-rect.width/2,y=anchor.y-rect.top-rect.height/2;
+      const oldScale=256*2**this.zoom,newScale=256*2**next;
+      this.cx+=x/oldScale-x/newScale;this.cy+=y/oldScale-y/newScale;
+    }
+    this.zoom=next;this.draw();
+  }
+  wheelZoom(event){
+    event.preventDefault();
+    if(!Number.isFinite(event.deltaY)||event.deltaY===0)return;
+    const map=this.shadowRoot.querySelector('.map');
+    const unit=event.deltaMode===1?100/3:event.deltaMode===2?(map.clientHeight||800):1;
+    const movement=Math.max(-100,Math.min(100,event.deltaY*unit));
+    const now=Number.isFinite(event.timeStamp)?event.timeStamp:Date.now();
+    if(this.wheelLastEvent===null||now-this.wheelLastEvent>250||Math.sign(movement)!==Math.sign(this.wheelDelta)){
+      this.wheelDelta=0;
+    }
+    this.wheelLastEvent=now;
+    this.wheelDelta=Math.max(-100,Math.min(100,this.wheelDelta+movement));
+    if(Math.abs(this.wheelDelta)<100||now-this.wheelLastZoom<120)return;
+    const direction=this.wheelDelta<0?1:-1;
+    this.wheelDelta=0;this.wheelLastZoom=now;
+    const anchor=Number.isFinite(event.clientX)&&Number.isFinite(event.clientY)?{x:event.clientX,y:event.clientY}:null;
+    this.changeZoom(direction,anchor);
+  }
   connectedCallback(){if(this.resizeObserver && this.shadowRoot) this.resizeObserver.observe(this.shadowRoot.querySelector('.map'))}
   renderYears(){
     const current=new Date().getFullYear(),years=new Set([current]);
