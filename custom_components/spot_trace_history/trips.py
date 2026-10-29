@@ -3,7 +3,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.helpers import config_validation as cv
 
-from .store import Store
+from .store import async_get_store
 
 DEVICES = vol.Any(None, [vol.Schema({vol.Required('feed_id'): cv.string, vol.Required('device'): cv.string})])
 
@@ -11,7 +11,7 @@ DEVICES = vol.Any(None, [vol.Schema({vol.Required('feed_id'): cv.string, vol.Req
 @websocket_api.websocket_command({vol.Required('type'): 'spot_trace_history/trips'})
 @websocket_api.async_response
 async def ws_trips(hass, connection, msg):
-    store = Store(hass.config.path('spot_trace_history.sqlite'))
+    store = async_get_store(hass)
     trips = await hass.async_add_executor_job(store.list_trips)
     connection.send_result(msg['id'], trips)
 
@@ -25,7 +25,7 @@ async def ws_trips(hass, connection, msg):
 })
 @websocket_api.async_response
 async def ws_create_trip(hass, connection, msg):
-    store = Store(hass.config.path('spot_trace_history.sqlite'))
+    store = async_get_store(hass)
     try:
         trip = await hass.async_add_executor_job(store.create_trip, msg['name'], msg['start_date'], msg['end_date'], msg.get('devices'))
     except ValueError as exc:
@@ -44,7 +44,7 @@ async def ws_create_trip(hass, connection, msg):
 })
 @websocket_api.async_response
 async def ws_update_trip(hass, connection, msg):
-    store = Store(hass.config.path('spot_trace_history.sqlite'))
+    store = async_get_store(hass)
     try:
         trip = await hass.async_add_executor_job(store.update_trip, msg['trip_id'], msg['name'],
                                                 msg['start_date'], msg['end_date'], msg.get('devices', ...))
@@ -63,7 +63,7 @@ async def ws_update_trip(hass, connection, msg):
 })
 @websocket_api.async_response
 async def ws_delete_trip(hass, connection, msg):
-    store = Store(hass.config.path('spot_trace_history.sqlite'))
+    store = async_get_store(hass)
     try:
         await hass.async_add_executor_job(store.delete_trip, msg['trip_id'])
     except KeyError as exc:

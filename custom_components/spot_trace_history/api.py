@@ -1,8 +1,28 @@
 """SPOT public XML feed reader."""
-import asyncio
 import xml.etree.ElementTree as ET
+from aiohttp import ClientTimeout
 from urllib.parse import quote
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+REQUEST_TIMEOUT = ClientTimeout(total=30)
+
+# SPOT error codes. A feed with no recent messages is reported as an error, not an empty list.
+NO_MESSAGES = 'E-0195'
+FEED_NOT_FOUND = 'E-0160'
+
+
+class SpotAPIError(Exception):
+    """Feed request failure whose message never includes the request URL or password."""
+
+
+class SpotFeedError(ValueError):
+    """SPOT answered with an error document, such as an unknown feed or rejected password."""
+
+    def __init__(self, code, text):
+        super().__init__('SPOT API error: ' + text)
+        self.code = code
+        self.text = text
+
 
 class SpotAPI:
     def __init__(self, hass, feed, password):
@@ -14,13 +34,23 @@ class SpotAPI:
         params = {'start': start}
         if self.password:
             params['feedPassword'] = self.password
-        async with self.session.get(self.url, params=params, timeout=30) as response:
-            response.raise_for_status()
-            raw = await response.text()
+        try:
+            async with self.session.get(self.url, params=params, timeout=REQUEST_TIMEOUT) as response:
+                if response.status >= 400:
+                    raise SpotAPIError(f'SPOT feed request failed with HTTP {response.status}')
+                raw = await response.text()
+        except SpotAPIError:
+            raise
+        except Exception as exc:
+            # Client errors can embed the request URL, which carries the feed password.
+            raise SpotAPIError(f'SPOT feed request failed: {type(exc).__name__}') from None
         root = ET.fromstring(raw)
         error = root.find('.//errors/error')
         if error is not None:
-            raise ValueError('SPOT API error: ' + ''.join(error.itertext()))
+            code = error.findtext('code')
+            if code == NO_MESSAGES:
+                return []
+            raise SpotFeedError(code, (error.findtext('text') or ''.join(error.itertext())).strip())
         items = []
         for msg in root.findall('.//messages/message'):
             def field(name):

@@ -1,6 +1,7 @@
 """Synthetic iOS exports test parsing and imports without private account data."""
 import hashlib
 from pathlib import Path
+from contextlib import closing
 import sqlite3
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -15,7 +16,7 @@ from custom_components.spot_trace_history.store import Store
 @pytest.fixture
 def source(tmp_path):
     path = tmp_path / 'spot_app.db'
-    with sqlite3.connect(path) as db:
+    with closing(sqlite3.connect(path)) as db, db:
         db.executescript('''
             CREATE TABLE devices(pk INTEGER PRIMARY KEY, name TEXT);
             CREATE TABLE message_types(pk INTEGER PRIMARY KEY, api_key TEXT);
@@ -47,7 +48,7 @@ def test_parser_reads_valid_fixes_and_leaves_source_unchanged(source):
     ('bad','145',100), ('-37','145',0), ('-37','145',100.5), ('-37','145','bad'),
 ])
 def test_invalid_values_are_skipped(source, lat, lon, time):
-    with sqlite3.connect(source) as db:
+    with closing(sqlite3.connect(source)) as db, db:
         db.execute('INSERT INTO messages VALUES(1,1,?,?,?,?)', ('invalid', lat, lon, time))
     assert len(parse_spot_sqlite(source)) == 2
 
@@ -57,7 +58,7 @@ def test_invalid_database_reports_actionable_error(source, problem):
     if problem == 'not-sqlite':
         source.write_text('not a database')
     else:
-        with sqlite3.connect(source) as db:
+        with closing(sqlite3.connect(source)) as db, db:
             if problem == 'wrong-schema':
                 db.execute('DROP TABLE messages')
             elif problem == 'empty':

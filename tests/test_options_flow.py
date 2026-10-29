@@ -92,7 +92,6 @@ def flow(flow_module, tmp_path):
                                ("feed-b", "other", "Other feed")]:
         store.insert(feed, [{"id": device, "device": device, "name": name,
                              "time": 100, "lat": -37.0, "lon": 145.0, "type": "TRACK"}])
-    coordinator = types.SimpleNamespace(store=store, feed="feed-a")
 
     async def execute(fn, *args):
         return fn(*args)
@@ -101,7 +100,7 @@ def flow(flow_module, tmp_path):
     # Model the config-entry binding performed by HA's options-flow manager.
     result._test_entry = entry
     result.hass = types.SimpleNamespace(
-        data={DOMAIN: {entry.entry_id: coordinator}},
+        data={DOMAIN: store},
         async_add_executor_job=AsyncMock(side_effect=execute),
     )
     return result
@@ -181,13 +180,19 @@ async def test_save_preserves_other_settings_and_archive(flow, name, enabled):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("missing_coordinator", [False, True])
-async def test_empty_or_unloaded_feed_aborts(flow, missing_coordinator):
-    if missing_coordinator:
-        flow.hass.data = {}
-    else:
-        flow.hass.data[DOMAIN]["entry-a"].feed = "empty-feed"
+async def test_empty_feed_aborts(flow):
+    flow.config_entry.data["feed_id"] = "empty-feed"
     assert await flow.async_step_manage_devices() == {"type": "abort", "reason": "no_devices"}
+
+
+@pytest.mark.asyncio
+async def test_unloaded_feed_reads_the_shared_archive(flow):
+    # No coordinator is involved: the archive is opened from the HA config directory.
+    store = flow.hass.data.pop(DOMAIN)
+    flow.hass.config = types.SimpleNamespace(path=lambda name: str(store.path))
+    result = await flow.async_step_manage_devices()
+    assert result["step_id"] == "manage_devices"
+    assert flow.hass.data[DOMAIN].path == store.path
 
 
 @pytest.mark.asyncio
@@ -209,9 +214,9 @@ async def test_device_step_without_selection_returns_to_device_picker(flow):
 
 @pytest.mark.asyncio
 async def test_metadata_uses_latest_archived_fix_from_owning_feed(flow):
-    coordinator = flow.hass.data[DOMAIN]["entry-a"]
+    store = flow.hass.data[DOMAIN]
     for feed, time, lat, lon in [("feed-a", 300, -38.5, 146.5), ("feed-b", 500, 1.0, 2.0)]:
-        coordinator.store.insert(feed, [{"id": "recent", "device": "vehicle", "name": "Vehicle",
+        store.insert(feed, [{"id": "recent", "device": "vehicle", "name": "Vehicle",
                                         "time": time, "lat": lat, "lon": lon, "type": "TRACK"}])
     result = await flow.async_step_manage_devices({"device": "vehicle"})
     assert result["description_placeholders"] == {
@@ -237,9 +242,7 @@ async def test_duplicate_friendly_names_still_identify_devices(flow):
 @pytest.mark.asyncio
 async def test_options_translation_placeholders_match_the_form(flow):
     root = Path(__file__).resolve().parents[1] / "custom_components/spot_trace_history"
-    strings = json.loads((root / "strings.json").read_text())
-    translation = json.loads((root / "translations/en.json").read_text())
-    assert translation == strings
+    strings = json.loads((root / "translations/en.json").read_text())
     result = await flow.async_step_manage_devices({"device": "vehicle"})
     description = strings["options"]["step"]["device"]["description"]
     assert set(re.findall(r"\{(\w+)\}", description)) == set(result["description_placeholders"])

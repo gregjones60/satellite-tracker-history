@@ -2,24 +2,36 @@
 from datetime import datetime, timezone
 
 from homeassistant.components.device_tracker import SourceType, TrackerEntity
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_DEVICES, CONF_ENABLED, CONF_ICON, CONF_NAME, DOMAIN
 
+# Updates come from the coordinator; entities never poll.
+PARALLEL_UPDATES = 0
+
+
+def tracker_unique_id(feed, device):
+    return f"{feed}_{device}"
+
+
+def device_settings(entry, device):
+    return entry.options.get(CONF_DEVICES, {}).get(device, {})
+
+
+def device_enabled(entry, device):
+    return device_settings(entry, device).get(CONF_ENABLED, True)
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     known = set()
-
-    def device_enabled(device):
-        settings = entry.options.get(CONF_DEVICES, {}).get(device, {})
-        return settings.get(CONF_ENABLED, True)
 
     def add_devices():
         new = {
             device
             for device in set(coordinator.data or {}) - known
-            if device_enabled(device)
+            if device_enabled(entry, device)
         }
         if new:
             known.update(new)
@@ -31,17 +43,18 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 class SpotTracker(CoordinatorEntity, TrackerEntity):
     _attr_should_poll = False
+    # The tracker is the device's main feature, so it takes the device's name.
+    _attr_has_entity_name = True
+    _attr_name = None
 
     def __init__(self, coordinator, entry, device):
         super().__init__(coordinator)
         self.entry = entry
         self.device = device
-        self._attr_unique_id = f"{coordinator.feed}_{device}"
+        self._attr_unique_id = tracker_unique_id(coordinator.feed, device)
 
-    @property
-    def name(self):
-        configured = self.entry.options.get(CONF_DEVICES, {}).get(self.device, {})
-        return configured.get(CONF_NAME) or self.coordinator.data.get(self.device, {}).get(
+    def _device_name(self):
+        return device_settings(self.entry, self.device).get(CONF_NAME) or self.coordinator.data.get(self.device, {}).get(
             "name", self.device
         )
 
@@ -51,12 +64,13 @@ class SpotTracker(CoordinatorEntity, TrackerEntity):
 
     @property
     def icon(self):
-        return self.entry.options.get(CONF_DEVICES, {}).get(self.device, {}).get(CONF_ICON) or None
+        return device_settings(self.entry, self.device).get(CONF_ICON) or None
 
     @property
     def device_info(self):
         """Associate each tracker with a native HA device for area/label settings."""
-        return {'identifiers': {(DOMAIN, self._attr_unique_id)}, 'name': self.name, 'manufacturer': 'SPOT'}
+        return DeviceInfo(identifiers={(DOMAIN, self._attr_unique_id)}, name=self._device_name(),
+                          manufacturer='SPOT', serial_number=self.device)
 
     @property
     def latitude(self):

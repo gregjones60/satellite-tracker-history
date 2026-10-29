@@ -1,0 +1,10 @@
+{
+  "services": {
+    "import_gpx": {
+      "service": "mdi:map-marker-path"
+    },
+    "import_sqlite": {
+      "service": "mdi:database-import"
+    }
+  }
+}

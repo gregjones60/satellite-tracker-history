@@ -14,17 +14,15 @@ from .import_feedback import import_message
 _LOGGER = logging.getLogger(__name__)
 
 
-def register_import_actions(hass, coordinator_type):
+def register_import_actions(hass, coordinators):
+    """Register once from async_setup; coordinators(hass) returns the loaded feeds."""
     for service, importer, suffixes in [
         ('import_gpx', async_import_gpx, {'.gpx'}),
         ('import_sqlite', async_import_sqlite, {'.db', '.sqlite', '.sqlite3'}),
     ]:
-        if hass.services.has_service(DOMAIN, service):
-            continue
         async def import_history(call, importer=importer, suffixes=suffixes):
             # Import only local files under the Home Assistant config directory.
-            entries = [c for c in hass.data.get(DOMAIN, {}).values()
-                       if isinstance(c, coordinator_type)]
+            entries = coordinators(hass)
             try:
                 source = import_source(hass.config.path(), call.data['filename'], suffixes)
                 result = await importer(hass, entries, source, call.data)
@@ -32,7 +30,8 @@ def register_import_actions(hass, coordinator_type):
                 persistent_notification.async_create(hass, 'The import did not finish. See the action error for details.',
                     title='SPOT history import failed', notification_id=f'{DOMAIN}_import')
                 if isinstance(exc, ValueError):
-                    raise HomeAssistantError(str(exc)) from exc
+                    raise HomeAssistantError(str(exc), translation_domain=DOMAIN, translation_key='import_failed',
+                                             translation_placeholders={'error': str(exc)}) from exc
                 raise
             persistent_notification.async_create(hass, import_message(result),
                 title='SPOT history import complete', notification_id=f'{DOMAIN}_import')
