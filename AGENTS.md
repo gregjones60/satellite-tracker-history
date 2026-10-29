@@ -33,3 +33,17 @@ Validate the first Device Management options UI in a real HA instance; then impr
 - `custom_components/spot_trace_history/www/spot-trace-history-card.js` — bundled map card
 - `tests/`, `tests-js/` — tests
 - `scripts/check.sh`, `.github/workflows/ci.yml` — validation
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues for gregjones60/spot-trace-history (via `gh`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root (created lazily). See `docs/agents/domain.md`.

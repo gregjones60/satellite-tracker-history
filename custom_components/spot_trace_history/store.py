@@ -1,17 +1,40 @@
 """Persistent GPS archive."""
 import sqlite3
 import json
+from contextlib import closing, contextmanager
 from datetime import date
 import re
 from uuid import uuid4
 from pathlib import Path
 
+from .const import ARCHIVE_FILENAME, DOMAIN
+
+
+def async_get_store(hass):
+    """Return the archive shared by every feed; it outlives config entries."""
+    store = hass.data.get(DOMAIN)
+    if store is None:
+        store = hass.data[DOMAIN] = Store(hass.config.path(ARCHIVE_FILENAME))
+    return store
+
+
 class Store:
     def __init__(self, path):
         self.path = Path(path)
+        self._schema_ready = False
 
+    @contextmanager
     def connect(self):
-        db = sqlite3.connect(self.path)
+        """Yield a connection inside one transaction, then close it."""
+        with closing(sqlite3.connect(self.path)) as db:
+            if not self._schema_ready:
+                self._create_schema(db)
+                self._schema_ready = True
+            with db:
+                yield db
+
+    @staticmethod
+    def _create_schema(db):
         db.execute('CREATE TABLE IF NOT EXISTS positions (feed TEXT NOT NULL, id TEXT NOT NULL, device TEXT NOT NULL, name TEXT, time INTEGER NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL, type TEXT, PRIMARY KEY(feed,id))')
         db.execute('CREATE INDEX IF NOT EXISTS position_lookup ON positions(feed,device,time)')
         db.execute('CREATE UNIQUE INDEX IF NOT EXISTS position_fix_dedupe ON positions(feed,device,time,lat,lon)')
@@ -22,7 +45,7 @@ class Store:
             except sqlite3.OperationalError as exc:
                 if 'duplicate column name' not in str(exc):
                     raise
-        return db
+        db.commit()
 
     def list_trips(self):
         with self.connect() as db:

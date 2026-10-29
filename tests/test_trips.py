@@ -1,6 +1,7 @@
 """Trip definitions persist independently of feeds and preserve archive data."""
 import importlib.util
 from pathlib import Path
+from contextlib import closing
 import sqlite3
 import sys
 import types
@@ -15,7 +16,7 @@ from custom_components.spot_trace_history.store import Store
 def test_trips_survive_reopening_legacy_archive(tmp_path):
     path = tmp_path / 'history.sqlite'
     # Simulate the existing archive before the trip table was introduced.
-    with sqlite3.connect(path) as db:
+    with closing(sqlite3.connect(path)) as db, db:
         db.execute('CREATE TABLE positions (feed TEXT NOT NULL,id TEXT NOT NULL,device TEXT NOT NULL,name TEXT,time INTEGER NOT NULL,lat REAL NOT NULL,lon REAL NOT NULL,type TEXT,PRIMARY KEY(feed,id))')
         db.execute("INSERT INTO positions VALUES ('f','1','d','Device',100,-37,145,'TRACK')")
     store = Store(path)
@@ -107,7 +108,7 @@ def test_trip_participants_persist_deduplicate_and_legacy_updates_preserve_them(
 
 def test_existing_trip_table_migrates_to_all_vehicles(tmp_path):
     path = tmp_path/'history.sqlite'
-    with sqlite3.connect(path) as db:
+    with closing(sqlite3.connect(path)) as db, db:
         db.execute('CREATE TABLE trips (id TEXT PRIMARY KEY,name TEXT UNIQUE,start_date TEXT,end_date TEXT)')
         db.execute("INSERT INTO trips VALUES ('1','Old trip','2026-01-01','2026-01-02')")
     assert Store(path).list_trips() == [{'id':'1','name':'Old trip','start_date':'2026-01-01',
@@ -151,7 +152,7 @@ async def test_websocket_create_list_and_validation(websocket_module,tmp_path):
     async def execute(fn,*args):
         return fn(*args)
     hass = types.SimpleNamespace(config=types.SimpleNamespace(path=lambda name:str(tmp_path/name)),
-                                 async_add_executor_job=execute)
+                                 async_add_executor_job=execute,data={})
     connection = Mock()
     message = {'id':1,'type':'spot_trace_history/create_trip','name':'Camping',
                'start_date':'2026-01-01','end_date':'2026-01-02',
@@ -175,7 +176,7 @@ async def test_websocket_update_delete_and_stale_selection(websocket_module,tmp_
     async def execute(fn,*args):
         return fn(*args)
     hass = types.SimpleNamespace(config=types.SimpleNamespace(path=lambda name:str(tmp_path/name)),
-                                 async_add_executor_job=execute)
+                                 async_add_executor_job=execute,data={})
     store = Store(tmp_path / 'spot_trace_history.sqlite')
     trip = store.create_trip('Camping','2026-01-01','2026-01-02')
     connection = Mock()

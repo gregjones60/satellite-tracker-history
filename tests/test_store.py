@@ -1,4 +1,11 @@
-from custom_components.spot_trace_history.store import Store
+import sqlite3
+
+import pytest
+
+import custom_components.spot_trace_history.store as store_module
+import types
+
+from custom_components.spot_trace_history.store import Store, async_get_store
 
 
 def point(identifier, device="Bluey", time=100, lat=-37.0, lon=145.0):
@@ -41,3 +48,31 @@ def test_device_name_mapping_prefers_latest_record_and_isolates_feeds(tmp_path):
 
     assert store.device_names("feed-a") == {"Vehicle": "new-tracker"}
     assert store.device_names("feed-b") == {"Vehicle": "other-feed-tracker"}
+
+
+def test_connections_closed_and_schema_created_once(tmp_path, monkeypatch):
+    opened = []
+    real_connect = sqlite3.connect
+    def tracking_connect(*args, **kwargs):
+        opened.append(real_connect(*args, **kwargs))
+        return opened[-1]
+    monkeypatch.setattr(store_module.sqlite3, "connect", tracking_connect)
+    schema_calls = []
+    real_schema = Store._create_schema
+    monkeypatch.setattr(Store, "_create_schema", staticmethod(lambda db: (schema_calls.append(1), real_schema(db))))
+    store = Store(tmp_path / "gps.sqlite")
+    store.insert("f", [point("1")])
+    store.latest("f")
+    store.list_devices("f")
+    assert len(opened) == 3
+    assert len(schema_calls) == 1
+    for db in opened:
+        with pytest.raises(sqlite3.ProgrammingError):
+            db.execute("SELECT 1")
+
+
+def test_one_archive_is_shared_by_every_caller(tmp_path):
+    hass = types.SimpleNamespace(data={}, config=types.SimpleNamespace(path=lambda name: str(tmp_path / name)))
+    store = async_get_store(hass)
+    assert store.path == tmp_path / "spot_trace_history.sqlite"
+    assert async_get_store(hass) is store

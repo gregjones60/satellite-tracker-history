@@ -32,7 +32,12 @@ def actions(monkeypatch):
     core = types.ModuleType('homeassistant.core')
     core.SupportsResponse = types.SimpleNamespace(OPTIONAL='optional')
     exceptions = types.ModuleType('homeassistant.exceptions')
-    exceptions.HomeAssistantError = type('HomeAssistantError',(Exception,),{})
+    class HomeAssistantError(Exception):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args)
+            self.translation_key = kwargs.get('translation_key')
+            self.translation_placeholders = kwargs.get('translation_placeholders')
+    exceptions.HomeAssistantError = HomeAssistantError
     cv = types.ModuleType('homeassistant.helpers.config_validation')
     cv.string = str
     for module in (components,notification,core,exceptions,cv):
@@ -58,7 +63,7 @@ async def test_import_actions_show_counts_and_optionally_return_results(actions,
         registry[name] = handler
     hass = types.SimpleNamespace(config=types.SimpleNamespace(path=lambda:str(tmp_path)),data={},
         services=types.SimpleNamespace(has_service=lambda *args:False,async_register=register))
-    actions.register_import_actions(hass,object)
+    actions.register_import_actions(hass,lambda hass:[])
     for name,suffix in [('import_gpx','.gpx'),('import_sqlite','.db')]:
         filename='history'+suffix
         (tmp_path/filename).write_text('test')
@@ -82,9 +87,11 @@ async def test_failed_import_replaces_success_notification(actions,tmp_path):
     hass = types.SimpleNamespace(config=types.SimpleNamespace(path=lambda:str(tmp_path)),data={},
         services=types.SimpleNamespace(has_service=lambda *args:False,
             async_register=lambda domain,name,handler,**kwargs:registry.update({name:handler})))
-    actions.register_import_actions(hass,object)
-    with pytest.raises(actions.HomeAssistantError,match='Cannot select a feed'):
+    actions.register_import_actions(hass,lambda hass:[])
+    with pytest.raises(actions.HomeAssistantError,match='Cannot select a feed') as caught:
         await registry['import_gpx'](types.SimpleNamespace(data={'filename':'history.gpx'},return_response=True))
+    assert caught.value.translation_key == 'import_failed'
+    assert caught.value.translation_placeholders == {'error':'Cannot select a feed'}
     assert actions.persistent_notification.async_create.call_args.kwargs['title'] == 'SPOT history import failed'
 
 

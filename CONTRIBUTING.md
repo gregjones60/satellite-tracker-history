@@ -1,8 +1,20 @@
 # Contributing
 
-Requirements: Python 3.13, Node.js 22.
+Requirements: Python 3.14 (required by current Home Assistant), Node.js 22.
 
-Run `python -m pip install pytest pytest-asyncio voluptuous`, then `bash scripts/check.sh`.
+Create a virtual environment, run `python -m pip install -r requirements_test.txt`,
+then `bash scripts/check.sh`. With [uv](https://docs.astral.sh/uv/):
+`uv venv --python 3.14 .venv && uv pip install --python .venv -r requirements_test.txt`,
+then `PATH="$PWD/.venv/bin:$PATH" bash scripts/check.sh`.
+
+`requirements_test.txt` pins `pytest-homeassistant-custom-component`, which pins a
+Home Assistant release. Tests marked `ha` (`tests/test_ha_integration.py`) run the
+integration in that real Home Assistant: entry setup/unload/reload, entities and
+devices, config and options flows, actions and WebSocket commands, with the SPOT
+API mocked. Without the harness installed (for example on an older Python with only
+`pytest pytest-asyncio voluptuous aiohttp`), those tests are skipped and the remaining
+tests use lightweight Home Assistant stand-ins. Neither replaces checking the UI
+in a running Home Assistant instance.
 Run `python scripts/build_release.py` to produce a release ZIP in `dist/` using
 the version in `manifest.json`, and synchronize `package.json` and the README
 heading/card URL to that version. Historical release notes retain their versions.

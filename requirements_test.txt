@@ -1,0 +1,4 @@
+# Pins Home Assistant itself (2026.10.4); bump together with hacs.json when raising the minimum.
+pytest-homeassistant-custom-component==0.13.375
+# The frontend integration (a manifest dependency) needs its matching package.
+home-assistant-frontend==20260930.5

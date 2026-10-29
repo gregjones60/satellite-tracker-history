@@ -9,8 +9,13 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
-from .api import SpotAPI
+from .api import FEED_NOT_FOUND, SpotAPI, SpotFeedError
 from .const import CONF_DEVICES, CONF_ENABLED, CONF_ICON, CONF_NAME, DOMAIN
+from .store import async_get_store
+
+
+def _password_selector():
+    return selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD))
 
 
 class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -18,32 +23,64 @@ class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    async def _async_validate(self, feed_id, password):
+        """Make one test request; return (errors, description placeholders)."""
+        try:
+            await SpotAPI(self.hass, feed_id, password).page()
+        except SpotFeedError as exc:
+            if exc.code == FEED_NOT_FOUND:
+                return {"feed_id": "feed_not_found"}, {}
+            # Includes rejected passwords; SPOT's own explanation is the most useful detail.
+            return {"base": "feed_rejected"}, {"spot_error": exc.text}
+        except Exception:  # noqa: BLE001 - network and parse failures are presented as a flow error
+            return {"base": "cannot_connect"}, {}
+        return {}, {}
+
     async def async_step_user(self, user_input=None):
-        errors = {}
+        errors, placeholders = {}, {}
         if user_input is not None:
-            try:
-                await SpotAPI(
-                    self.hass,
-                    user_input["feed_id"],
-                    user_input.get("password", ""),
-                ).page()
-            except Exception:  # noqa: BLE001 - API failures are presented as a flow error
-                errors["base"] = "cannot_connect"
+            feed_id = user_input["feed_id"].strip()
+            password = user_input.get("password", "")
+            if not feed_id:
+                errors["feed_id"] = "feed_not_found"
             else:
-                await self.async_set_unique_id(user_input["feed_id"])
+                await self.async_set_unique_id(feed_id)
                 self._abort_if_unique_id_configured()
+                errors, placeholders = await self._async_validate(feed_id, password)
+            if not errors:
                 return self.async_create_entry(
-                    title="SPOT " + user_input["feed_id"][-6:], data=user_input
+                    title="SPOT " + feed_id[-6:], data={"feed_id": feed_id, "password": password}
                 )
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("feed_id"): str,
-                    vol.Optional("password", default=""): str,
-                }
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required("feed_id"): str,
+                        vol.Optional("password", default=""): _password_selector(),
+                    }
+                ),
+                {"feed_id": user_input["feed_id"]} if user_input else {},
             ),
             errors=errors,
+            description_placeholders=placeholders,
+        )
+
+    async def async_step_reconfigure(self, user_input=None):
+        """Change the feed password; the feed ID keys the archive and trackers, so it is fixed."""
+        entry = self._get_reconfigure_entry()
+        feed_id = entry.data["feed_id"]
+        errors, placeholders = {}, {}
+        if user_input is not None:
+            password = user_input.get("password", "")
+            errors, placeholders = await self._async_validate(feed_id, password)
+            if not errors:
+                return self.async_update_reload_and_abort(entry, data_updates={"password": password})
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema({vol.Optional("password", default=""): _password_selector()}),
+            errors=errors,
+            description_placeholders={"feed_id": feed_id, **placeholders},
         )
 
     @staticmethod
@@ -62,15 +99,11 @@ class SpotOptionsFlow(config_entries.OptionsFlow):
         self._devices: list[dict[str, Any]] = []
 
     async def _async_load_devices(self) -> list[dict[str, Any]]:
-        coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
-        if coordinator is None:
-            return []
-        devices = await self.hass.async_add_executor_job(
-            coordinator.store.list_devices, coordinator.feed
-        )
-        latest = await self.hass.async_add_executor_job(
-            coordinator.store.latest, coordinator.feed
-        )
+        # Read the archive directly so devices remain manageable while the feed is unloaded.
+        store = async_get_store(self.hass)
+        feed = self.config_entry.data["feed_id"]
+        devices = await self.hass.async_add_executor_job(store.list_devices, feed)
+        latest = await self.hass.async_add_executor_job(store.latest, feed)
         return [{**device, "lat": latest.get(device["device"], {}).get("lat"),
                  "lon": latest.get(device["device"], {}).get("lon")} for device in devices]
 
