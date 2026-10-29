@@ -29,7 +29,8 @@ imports. They do not guarantee a fresh fix from the tracker.
 
 You can change its friendly name or disable its Home Assistant device tracker.
 The **Icon** picker accepts Material Design Icons such as `mdi:car-estate` or
-`mdi:caravan`. Clear it to restore the default icon. Each tracker is also
+`mdi:caravan`. Clear it to restore the default icon. The map card shows the
+vehicle with the same icon. Each tracker is also
 associated with a native Home Assistant device, with a stable identity across
 renames and integration reloads. The tracker takes its name from that device:
 the friendly name set here becomes the device name, and the device page shows
@@ -82,13 +83,19 @@ devices:
   Ultimate:
     name: Camper Trailer
     color: '#e65100'
+    icon: mdi:caravan
     enabled: true
 ```
 
 The card uses XML messenger IDs when present, or GPX track names for archived-only devices. For unambiguous per-feed overrides, use a key in the form `<entry_id>:<messenger_id>`. The card provides a visibility checkbox for each device. New devices appear after their feed is configured and polled, and the card is reloaded.
 
-The map has **+ / − zoom buttons**, mouse-wheel zoom, drag-to-pan, and **Fit
-routes**. The card fills its parent's width and available height, with the map
+The map uses [Leaflet](https://leafletjs.com) 1.9.4, which is bundled with the
+integration and needs no internet access beyond the map tiles. It has **+ / −
+zoom buttons**, smooth mouse-wheel, trackpad and pinch zoom, drag-to-pan, and
+**Fit routes**. Each vehicle's latest position, or its position on the trip
+timeline, is marked in its route colour with the icon chosen in the
+integration's device options. A card `icon` setting overrides that icon, and a
+vehicle without an icon is shown as a dot. The card fills its parent's width and available height, with the map
 using the space below the controls. When the dashboard provides no fixed parent
 height, the map uses a 420px fallback basis. Its minimum map height is 200px.
 For a full-width view, place this card as the only card in a
@@ -98,12 +105,6 @@ still controls the card's available width and space. Live HA layout validation
 remains necessary.
 
 ## Named trips
-
-Mouse-wheel zoom accumulates small movements and limits rapid zoom steps, so
-trackpads no longer jump a level for every tiny event. Zoom stays centred on the
-location under the pointer; the +/− buttons remain centred on the map. Pixel,
-line, and page wheel events are normalized, and stopping a gesture does not
-schedule extra zoom steps.
 
 Use the **Year** dropdown beside the date fields to show January 1 through
 December 31 of a particular year. Years are drawn from the first/last archived

@@ -43,6 +43,5 @@ _Status as of 12 October 2026. Proposed priorities, not committed release dates.
 
 ## Non-goals unless explicitly requested
 
-- Replacing the built-in map renderer with a new mapping library.
 - Automatically deleting SQLite positions when a device or feed is removed.
 - Assuming a SPOT feed uniquely represents one messenger/device.

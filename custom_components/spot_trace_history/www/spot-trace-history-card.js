@@ -1,5 +1,8 @@
 (() => {
+// Leaflet is bundled with the integration and served next to this card.
+const LEAFLET_VERSION='1.9.4',LEAFLET_URL='/spot_trace_history/leaflet/';
 class SpotTraceHistoryCard extends HTMLElement {
+  static loadLeaflet(){return import(`${LEAFLET_URL}leaflet-src.esm.js?v=${LEAFLET_VERSION}`)}
   setConfig(config) {
     if (!config || config.type !== 'custom:spot-trace-history-card') throw Error('Invalid card type');
     this.pausePlayback(false);
@@ -11,23 +14,19 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.days=Number(config.days || 30);
     this.selected={};
     this.attachShadow({mode:'open'});
-    this.shadowRoot.innerHTML=`<style>
+    this.shadowRoot.innerHTML=`<link rel="stylesheet" href="${LEAFLET_URL}leaflet.css?v=${LEAFLET_VERSION}"><style>
       :host{display:block;width:100%;height:100%;min-height:0;box-sizing:border-box} .wrap{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;box-sizing:border-box;padding:16px;color:var(--primary-text-color);background:var(--ha-card-background,var(--card-background-color,#fff));border-radius:var(--ha-card-border-radius,12px)}
       .head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}h3{margin:0 0 12px}
       .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
       label{display:flex;align-items:center;gap:5px;font-size:13px}input,select{background:var(--ha-card-background,var(--card-background-color,#fff));color:inherit;border:1px solid var(--divider-color,#aaa);border-radius:5px;padding:5px;max-width:100%;box-sizing:border-box}
       .map{flex:1 1 420px;min-height:200px;width:100%;position:relative;overflow:hidden;background:#dce5e7;border-radius:8px;touch-action:none}
       .controls,.legend,h3,.note,.playback{flex-shrink:0}.playback{padding:10px;border:1px solid var(--divider-color,#aaa);border-radius:8px}.playback input[type=range]{flex:1;min-width:100px}.playback-time,.playback-positions{display:block;font-size:12px;margin-top:6px}.playback-positions{max-height:100px;overflow:auto}
-      .zoom-controls{position:absolute;top:10px;right:10px;z-index:1;display:flex;flex-direction:column;gap:4px}
-      .zoom-controls button{width:40px;height:40px;padding:0;font-size:24px;background:var(--ha-card-background,var(--card-background-color,#fff));box-shadow:0 1px 4px #0004}
-      .zoom-controls button:disabled{opacity:.45;cursor:default}
-      .tiles{position:absolute;inset:0}.tiles img{position:absolute;width:256px;height:256px;max-width:none;pointer-events:none}
-      svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+      .vehicle-marker{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;height:100%;border:2px solid #fff;border-radius:50%;color:#fff;box-shadow:0 1px 4px #0006;--mdc-icon-size:18px}
       .legend{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0}.swatch{display:inline-block;width:11px;height:11px;border-radius:50%}
       button{border:1px solid var(--divider-color,#aaa);border-radius:6px;background:transparent;color:inherit;padding:5px 10px;cursor:pointer}
       .trip-dialog{width:min(420px,calc(100vw - 48px));border:1px solid var(--divider-color,#aaa);border-radius:12px;padding:20px;color:inherit;background:var(--ha-card-background,var(--card-background-color,#fff))}.trip-dialog::backdrop{background:#0008}.trip-form{display:flex;flex-direction:column;gap:14px}.trip-form label{display:flex;flex-direction:column;align-items:stretch}.trip-form .trip-vehicle{flex-direction:row;align-items:center;margin:8px 0}.trip-vehicles{max-height:200px;overflow:auto}.trip-error{margin:0;color:var(--error-color,#db4437)}
       .note{font-size:12px;color:var(--secondary-text-color);margin-top:8px}
-      </style><div class="wrap"><h3></h3><div class="controls"><label>Year <select class="year-select" aria-label="Filter by year"><option value="">Custom dates</option></select></label><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="controls trip-controls"><label>Trip <select class="trip-select" aria-label="Saved trip"><option value="">Custom dates</option></select></label><button class="new-trip" type="button">New trip</button><button class="edit-trip" type="button" disabled>Edit trip</button><button class="delete-trip" type="button" disabled>Delete trip</button></div><dialog class="trip-dialog" aria-labelledby="trip-dialog-title"><form class="trip-form"><h3 id="trip-dialog-title" class="trip-dialog-title">New trip</h3><label>Name <input class="trip-name" type="text" required maxlength="100" autofocus></label><label>From <input class="trip-from" type="date" required></label><label>To <input class="trip-to" type="date" required></label><fieldset><legend>Vehicles involved</legend><label class="trip-vehicle"><input class="trip-all-devices" type="checkbox">All vehicles (including future trackers)</label><div class="trip-vehicles"></div></fieldset><p class="trip-error" role="alert"></p><div class="controls"><button class="cancel-trip-edit" type="button">Cancel</button><button class="save-trip" type="submit">Create trip</button></div></form></dialog><section class="playback" hidden aria-label="Trip timeline"><label><input class="playback-enabled" type="checkbox">Explore trip timeline</label><div class="controls"><button class="playback-play" type="button" disabled>Play</button><label>Speed <select class="playback-speed" aria-label="Playback speed"><option value="60">1 minute / second</option><option value="600">10 minutes / second</option><option value="3600" selected>1 hour / second</option><option value="21600">6 hours / second</option><option value="86400">1 day / second</option></select></label></div><label>Time <input class="playback-slider" type="range" step="1" aria-label="Trip playback time" disabled></label><output class="playback-time"></output><div class="playback-positions"></div></section><div class="legend"></div><div class="map"><div class="tiles"></div><svg xmlns="http://www.w3.org/2000/svg"></svg><div class="zoom-controls" role="group" aria-label="Map zoom"><button type="button" class="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><button type="button" class="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div></div><div class="note" role="status"></div></div>`;
+      </style><div class="wrap"><h3></h3><div class="controls"><label>Year <select class="year-select" aria-label="Filter by year"><option value="">Custom dates</option></select></label><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="controls trip-controls"><label>Trip <select class="trip-select" aria-label="Saved trip"><option value="">Custom dates</option></select></label><button class="new-trip" type="button">New trip</button><button class="edit-trip" type="button" disabled>Edit trip</button><button class="delete-trip" type="button" disabled>Delete trip</button></div><dialog class="trip-dialog" aria-labelledby="trip-dialog-title"><form class="trip-form"><h3 id="trip-dialog-title" class="trip-dialog-title">New trip</h3><label>Name <input class="trip-name" type="text" required maxlength="100" autofocus></label><label>From <input class="trip-from" type="date" required></label><label>To <input class="trip-to" type="date" required></label><fieldset><legend>Vehicles involved</legend><label class="trip-vehicle"><input class="trip-all-devices" type="checkbox">All vehicles (including future trackers)</label><div class="trip-vehicles"></div></fieldset><p class="trip-error" role="alert"></p><div class="controls"><button class="cancel-trip-edit" type="button">Cancel</button><button class="save-trip" type="submit">Create trip</button></div></form></dialog><section class="playback" hidden aria-label="Trip timeline"><label><input class="playback-enabled" type="checkbox">Explore trip timeline</label><div class="controls"><button class="playback-play" type="button" disabled>Play</button><label>Speed <select class="playback-speed" aria-label="Playback speed"><option value="60">1 minute / second</option><option value="600">10 minutes / second</option><option value="3600" selected>1 hour / second</option><option value="21600">6 hours / second</option><option value="86400">1 day / second</option></select></label></div><label>Time <input class="playback-slider" type="range" step="1" aria-label="Trip playback time" disabled></label><output class="playback-time"></output><div class="playback-positions"></div></section><div class="legend"></div><div class="map"></div><div class="note" role="status"></div></div>`;
     this.shadowRoot.querySelector('h3').textContent=config.title || 'SPOT Trace History';
     const today=new Date(), start=new Date(today.getTime()-this.days*86400000);
     const date=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -53,48 +52,33 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.shadowRoot.querySelector('.delete-trip').onclick=()=>this.deleteTrip();
     this.shadowRoot.querySelector('.cancel-trip-edit').onclick=()=>this.cancelTripEdit();
     for(const selector of ['.from','.to']) this.shadowRoot.querySelector(selector).onchange=()=>{this.shadowRoot.querySelector('.trip-select').value='';this.syncTripControls();this.syncYear();this.legend()};
-    this.shadowRoot.querySelector('.fit').onclick=()=>{this.fit();this.draw()};
-    this.shadowRoot.querySelector('.zoom-in').onclick=()=>this.changeZoom(1);
-    this.shadowRoot.querySelector('.zoom-out').onclick=()=>this.changeZoom(-1);
-    this.shadowRoot.querySelector('.zoom-controls').addEventListener('pointerdown',e=>e.stopPropagation());
-    this.shadowRoot.querySelector('.map').addEventListener('wheel',e=>this.wheelZoom(e),{passive:false});
-    this.shadowRoot.querySelector('.map').addEventListener('pointerdown',e=>{this.drag=[e.clientX,e.clientY];e.currentTarget.setPointerCapture(e.pointerId)});
-    this.shadowRoot.querySelector('.map').addEventListener('pointermove',e=>{if(!this.drag)return;const scale=256*Math.pow(2,this.zoom);this.cx-=(e.clientX-this.drag[0])/scale;this.cy-=(e.clientY-this.drag[1])/scale;this.drag=[e.clientX,e.clientY];this.draw()});
-    this.shadowRoot.querySelector('.map').addEventListener('pointerup',()=>this.drag=null);
-    this.zoom=6;this.cx=.5;this.cy=.5;this.tracks=[];
-    this.wheelDelta=0;this.wheelLastEvent=null;this.wheelLastZoom=-Infinity;
-    this.tileNodes=new Map();this.tileFailures=0;this.lastTileError=0;this.lastViewKey='';
-    this.resizeObserver=new ResizeObserver(()=>this.draw());this.resizeObserver.observe(this.shadowRoot.querySelector('.map'));
+    this.shadowRoot.querySelector('.fit').onclick=()=>this.fit();
+    this.tracks=[];this.markers=new Map();this.pendingFit=false;
+    this.tileFailures=0;this.lastTileError=0;
+    this.resizeObserver=new ResizeObserver(()=>this.resized());this.resizeObserver.observe(this.shadowRoot.querySelector('.map'));
   }
-  disconnectedCallback(){this.pausePlayback(false);document.removeEventListener?.('visibilitychange',this.visibilityHandler);this.resizeObserver?.disconnect();this.tileNodes?.clear()}
-  changeZoom(delta,anchor=null){
-    const next=Math.max(1,Math.min(17,this.zoom+delta));
-    if(anchor&&next!==this.zoom){
-      const map=this.shadowRoot.querySelector('.map'),rect=map.getBoundingClientRect();
-      const x=anchor.x-rect.left-rect.width/2,y=anchor.y-rect.top-rect.height/2;
-      const oldScale=256*2**this.zoom,newScale=256*2**next;
-      this.cx+=x/oldScale-x/newScale;this.cy+=y/oldScale-y/newScale;
-    }
-    this.zoom=next;this.draw();
+  disconnectedCallback(){this.pausePlayback(false);document.removeEventListener?.('visibilitychange',this.visibilityHandler);this.resizeObserver?.disconnect()}
+  ensureMap(){
+    this.mapReady??=SpotTraceHistoryCard.loadLeaflet().then(L=>{
+      this.L=L;
+      // Fractional zoom steps let wheel and pinch gestures zoom smoothly instead of jumping a whole level,
+      // and capping drag momentum keeps a quick flick to a few hundred pixels instead of across the world.
+      this.map=L.map(this.shadowRoot.querySelector('.map'),{preferCanvas:true,zoomSnap:.25,zoomDelta:.5,wheelPxPerZoomLevel:120,
+        inertiaMaxSpeed:600,minZoom:1,maxZoom:17,worldCopyJump:true}).setView([0,0],2);
+      L.tileLayer(this.tileUrl,{maxZoom:17,attribution:this.tileAttribution,referrerPolicy:'strict-origin-when-cross-origin'})
+        .on('tileerror',()=>{
+          this.tileFailures++;
+          if(Date.now()-this.lastTileError>30000){
+            this.lastTileError=Date.now();
+            this.status('Some map tiles failed to load. Check the tile provider, browser Referer and caching policy (HTTP 403 is possible).');
+          }
+        }).addTo(this.map);
+      this.trackLayer=L.layerGroup().addTo(this.map);this.markerLayer=L.layerGroup().addTo(this.map);
+      this.draw();if(this.pendingFit)this.fit();
+    }).catch(e=>{this.mapReady=null;this.status('Unable to load the map: '+e.message)});
+    return this.mapReady;
   }
-  wheelZoom(event){
-    event.preventDefault();
-    if(!Number.isFinite(event.deltaY)||event.deltaY===0)return;
-    const map=this.shadowRoot.querySelector('.map');
-    const unit=event.deltaMode===1?100/3:event.deltaMode===2?(map.clientHeight||800):1;
-    const movement=Math.max(-100,Math.min(100,event.deltaY*unit));
-    const now=Number.isFinite(event.timeStamp)?event.timeStamp:Date.now();
-    if(this.wheelLastEvent===null||now-this.wheelLastEvent>250||Math.sign(movement)!==Math.sign(this.wheelDelta)){
-      this.wheelDelta=0;
-    }
-    this.wheelLastEvent=now;
-    this.wheelDelta=Math.max(-100,Math.min(100,this.wheelDelta+movement));
-    if(Math.abs(this.wheelDelta)<100||now-this.wheelLastZoom<120)return;
-    const direction=this.wheelDelta<0?1:-1;
-    this.wheelDelta=0;this.wheelLastZoom=now;
-    const anchor=Number.isFinite(event.clientX)&&Number.isFinite(event.clientY)?{x:event.clientX,y:event.clientY}:null;
-    this.changeZoom(direction,anchor);
-  }
+  resized(){if(!this.map)return;this.map.invalidateSize();if(this.pendingFit)this.fit()}
   connectedCallback(){if(this.resizeObserver && this.shadowRoot) this.resizeObserver.observe(this.shadowRoot.querySelector('.map'));if(this.visibilityHandler)document.addEventListener?.('visibilitychange',this.visibilityHandler);if(this.shadowRoot&&this.trips)this.renderPlayback()}
   renderYears(){
     const current=new Date().getFullYear(),years=new Set([current]);
@@ -123,7 +107,7 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.shadowRoot.querySelector('.trip-select').value='';
     this.syncTripControls();this.legend();await this.loadTracks();
   }
-  set hass(hass){this._hass=hass;if(!this.initialized){this.initialized=true;this.loadDevices()}}
+  set hass(hass){this._hass=hass;if(!this.initialized){this.initialized=true;this.ensureMap();this.loadDevices()}}
   async loadDevices(){
     try {
       this.allDevices=await this._hass.callWS({type:'spot_trace_history/devices'});
@@ -335,71 +319,46 @@ class SpotTraceHistoryCard extends HTMLElement {
     try {const tracks=await Promise.all(this.tripDevices().filter(d=>this.selected[d.entry_id+':'+d.device]).map(async d=>({d,points:await this._hass.callWS({type:'spot_trace_history/track',entry_id:d.entry_id,device:d.device,start:Math.floor(start),end:Math.floor(end),limit:50000})})));
       if(request!==this.trackRequest)return;
       this.tracks=tracks;this.playbackRange={start:Math.floor(start),end:Math.floor(end)};this.renderPlayback();
-      this.fit();this.draw();this.status(this.tracks.reduce((s,t)=>s+t.points.length,0)+' positions displayed. Scroll to zoom, drag to pan. Map ' + this.tileAttribution + (this.tracks.some(t=>t.points.length>=50000)?'. A vehicle reached the 50,000-position limit; its timeline may be incomplete.':''));
+      this.draw();this.fit();this.status(this.tracks.reduce((s,t)=>s+t.points.length,0)+' positions displayed. Scroll or pinch to zoom, drag to pan' + (this.tracks.some(t=>t.points.length>=50000)?'. A vehicle reached the 50,000-position limit; its timeline may be incomplete.':'.'));
     }catch(e){if(request===this.trackRequest)this.status('Track loading failed: '+e.message)}
   }
-  merc(lat,lon){const phi=Math.max(-85.0511,Math.min(85.0511,lat))*Math.PI/180;return [(lon+180)/360,(1-Math.log(Math.tan(phi)+1/Math.cos(phi))/Math.PI)/2]}
-  fit(){const pts=this.tracks.flatMap(t=>t.points);if(!pts.length)return;
-    let minx=Infinity,maxx=-Infinity,miny=Infinity,maxy=-Infinity;
-    for(const p of pts){const [x,y]=this.merc(p.lat,p.lon);minx=Math.min(minx,x);maxx=Math.max(maxx,x);miny=Math.min(miny,y);maxy=Math.max(maxy,y)}
-    this.cx=(minx+maxx)/2;this.cy=(miny+maxy)/2;
-    const el=this.shadowRoot.querySelector('.map'),w=el.clientWidth||600,h=el.clientHeight||420;
-    this.zoom=Math.max(1,Math.min(16,Math.floor(Math.log2(Math.min(w/(Math.max(.00001,maxx-minx)*320),h/(Math.max(.00001,maxy-miny)*320))))));
+  trackBounds(){
+    let south=Infinity,west=Infinity,north=-Infinity,east=-Infinity;
+    for(const track of this.tracks)for(const p of track.points){south=Math.min(south,p.lat);north=Math.max(north,p.lat);west=Math.min(west,p.lon);east=Math.max(east,p.lon)}
+    return Number.isFinite(south)?[[south,west],[north,east]]:null;
   }
-  draw(){if(!this.shadowRoot)return;
-    this.shadowRoot.querySelector('.zoom-in').disabled=this.zoom>=17;
-    this.shadowRoot.querySelector('.zoom-out').disabled=this.zoom<=1;
-    const map=this.shadowRoot.querySelector('.map'),w=map.clientWidth,h=map.clientHeight;if(!w||!h)return;
-    const z=this.zoom,scale=256*2**z, tiles=this.shadowRoot.querySelector('.tiles');
-    const left=this.cx*scale-w/2,top=this.cy*scale-h/2;
-    // Reuse existing image elements when only the position changes.
-    // Keep a one-tile buffer to avoid needless downloads on small pans.
-    const needed=new Set(), max=2**z;
-    const x0=Math.floor(left/256)-1,x1=Math.floor((left+w)/256)+1;
-    const y0=Math.max(0,Math.floor(top/256)-1),y1=Math.min(max-1,Math.floor((top+h)/256)+1);
-    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){
-      const wrappedX=((x%max)+max)%max, key=`${z}/${wrappedX}/${y}`;
-      needed.add(key);
-      let img=this.tileNodes.get(key);
-      if(!img){
-        img=document.createElement('img');img.loading='lazy';img.alt='';img.decoding='async';
-        img.referrerPolicy='strict-origin-when-cross-origin';
-        img.dataset.key=key;
-        img.onerror=()=>{
-          if(!this.tileNodes.has(key))return;
-          this.tileFailures++;
-          if(Date.now()-this.lastTileError>30000){
-            this.lastTileError=Date.now();
-            this.status('Some map tiles failed to load. Check the tile provider, browser Referer and caching policy (HTTP 403 is possible).');
-          }
-        };
-        img.src=this.tileUrl.replaceAll("{z}",String(z)).replaceAll("{x}",String(wrappedX)).replaceAll("{y}",String(y));
-        this.tileNodes.set(key,img);tiles.append(img);
-      }
-      img.style.left=(x*256-left)+'px';
-      img.style.top=(y*256-top)+'px';
+  fit(){
+    const bounds=this.trackBounds(),map=this.shadowRoot.querySelector('.map');
+    // Leaflet cannot fit a hidden map, so wait until it has a size.
+    this.pendingFit=Boolean(bounds)&&!(this.map&&map.clientWidth&&map.clientHeight);
+    if(bounds&&!this.pendingFit)this.map.fitBounds(bounds,{padding:[24,24],maxZoom:16});
+  }
+  trackColor(d){return this.deviceSettings(d).color||this.palette(this.devices.indexOf(d))}
+  draw(){
+    if(!this.map){this.ensureMap();return}
+    this.trackLayer.clearLayers();this.markerLayer.clearLayers();this.markers.clear();
+    for(const t of this.tracks){
+      if(t.points.length)this.L.polyline(t.points.map(p=>[p.lat,p.lon]),{color:this.trackColor(t.d),weight:3,lineJoin:'round',lineCap:'round'}).addTo(this.trackLayer);
     }
-    // Only remove tiles that are no longer near the visible viewport.
-    for(const [key,img] of this.tileNodes){
-      if(!needed.has(key)){img.remove();this.tileNodes.delete(key)}
-    }
-    const svg=this.shadowRoot.querySelector('svg');svg.replaceChildren();svg.setAttribute('viewBox',`0 0 ${w} ${h}`);
-    this.tracks.forEach((t,i)=>{if(!t.points.length)return;const color=(this.deviceSettings(t.d)||{}).color||this.palette(this.devices.indexOf(t.d));
-      const path=document.createElementNS('http://www.w3.org/2000/svg','polyline');path.setAttribute('fill','none');path.setAttribute('stroke',color);path.setAttribute('stroke-width','3');path.setAttribute('stroke-linejoin','round');path.setAttribute('stroke-linecap','round');
-      path.setAttribute('points',t.points.map(p=>{const xy=this.merc(p.lat,p.lon);return `${(xy[0]*scale-left).toFixed(1)},${(xy[1]*scale-top).toFixed(1)}`}).join(' '));svg.append(path);
-    });
-    this.markerLayer=document.createElementNS('http://www.w3.org/2000/svg','g');svg.append(this.markerLayer);this.drawMarkers();
+    this.drawMarkers();
+  }
+  vehicleIcon(d){
+    const icon=this.deviceSettings(d).icon||d.icon,size=icon?30:16;
+    const el=document.createElement('div');el.className='vehicle-marker';el.style.background=this.trackColor(d);
+    if(icon){const haIcon=document.createElement('ha-icon');haIcon.setAttribute('icon',icon);el.append(haIcon)}
+    return this.L.divIcon({html:el,className:'',iconSize:[size,size],iconAnchor:[size/2,size/2]});
   }
   drawMarkers(){
     if(!this.markerLayer)return;
-    this.markerLayer.replaceChildren();
-    const map=this.shadowRoot.querySelector('.map'),scale=256*2**this.zoom;
-    const left=this.cx*scale-map.clientWidth/2,top=this.cy*scale-map.clientHeight/2;
+    // Markers are moved rather than rebuilt, so playback does not reload their icons on every frame.
     for(const track of this.tracks){
-      const point=this.playbackPoint(track.points);if(!point)continue;
-      const color=this.deviceSettings(track.d).color||this.palette(this.devices.indexOf(track.d));
-      const [x,y]=this.merc(point.lat,point.lon),marker=document.createElementNS('http://www.w3.org/2000/svg','circle');
-      marker.setAttribute('cx',x*scale-left);marker.setAttribute('cy',y*scale-top);marker.setAttribute('r','5');marker.setAttribute('fill',color);marker.setAttribute('stroke','#fff');marker.setAttribute('stroke-width','2');this.markerLayer.append(marker);
+      const key=track.d.entry_id+':'+track.d.device,point=this.playbackPoint(track.points);
+      let marker=this.markers.get(key);
+      if(!point){if(marker){this.markerLayer.removeLayer(marker);this.markers.delete(key)}continue}
+      if(marker){marker.setLatLng([point.lat,point.lon]);continue}
+      const name=this.deviceSettings(track.d).name||track.d.name||track.d.device;
+      marker=this.L.marker([point.lat,point.lon],{icon:this.vehicleIcon(track.d),title:name,alt:name,keyboard:false}).addTo(this.markerLayer);
+      this.markers.set(key,marker);
     }
   }
   getCardSize(){return 6}

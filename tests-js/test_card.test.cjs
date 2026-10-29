@@ -5,11 +5,6 @@ const path = require('node:path');
 const vm = require('node:vm');
 const src = fs.readFileSync(path.join(__dirname, '../custom_components/spot_trace_history/www/spot-trace-history-card.js'), 'utf8');
 
-test('card source retains a tile cache and removes obsolete tiles', () => {
-  assert.match(src, /tileNodes=new Map\(\)/);
-  assert.match(src, /this\.tileNodes\.get\(key\)/);
-  assert.match(src, /!needed\.has\(key\)/);
-});
 test('tile requests use a safe referrer policy and configurable provider', () => {
   assert.match(src, /strict-origin-when-cross-origin/);
   assert.match(src, /tile_url/);
@@ -56,46 +51,6 @@ test('an existing card definition and picker entry are preserved', () => {
   assert.equal(c.registered.get('spot-trace-history-card'),existing);
   assert.equal(c.context.window.customCards.length,1);
   assert.equal(c.context.window.customCards[0],pickerEntry);
-});
-
-test('zoom buttons and wheel change scale, respect bounds, and do not drag the map', () => {
-  const c=cardContext();
-  c.context.ResizeObserver=class {observe() {} disconnect() {}};
-  vm.runInContext(src,c.context);
-  const Card=c.registered.get('spot-trace-history-card');
-  const card=new Card();
-  const nodes=new Map();
-  const node=selector=>{
-    if(!nodes.has(selector)) nodes.set(selector,{
-      clientWidth:0, clientHeight:0, listeners:{},
-      addEventListener(name,handler){this.listeners[name]=handler},
-    });
-    return nodes.get(selector);
-  };
-  card.attachShadow=()=>{card.shadowRoot={querySelector:node}};
-  card.setConfig({type:'custom:spot-trace-history-card'});
-  // A zero-size map lets the real draw() update controls without tile rendering.
-  node('.zoom-in').onclick();
-  assert.equal(card.zoom,7);
-  node('.zoom-out').onclick();
-  assert.equal(card.zoom,6);
-  let prevented=false;
-  node('.map').listeners.wheel({deltaY:-100,preventDefault(){prevented=true}});
-  assert.equal(card.zoom,7);
-  assert.equal(prevented,true);
-  card.zoom=17;
-  node('.zoom-in').onclick();
-  assert.equal(card.zoom,17);
-  assert.equal(node('.zoom-in').disabled,true);
-  assert.equal(node('.zoom-out').disabled,false);
-  card.zoom=1;
-  node('.zoom-out').onclick();
-  assert.equal(card.zoom,1);
-  assert.equal(node('.zoom-out').disabled,true);
-  let stopped=false;
-  node('.zoom-controls').listeners.pointerdown({stopPropagation(){stopped=true}});
-  assert.equal(stopped,true);
-  assert.equal(card.drag,undefined);
 });
 
 function tripCard() {
@@ -336,71 +291,6 @@ test('year options use only devices included by the card and tolerate missing me
   assert.equal(node('.year-select').children.length,2);
 });
 
-test('fit routes handles many points across multiple vehicles without spreading arrays', () => {
-  const c=cardContext();vm.runInContext(src,c.context);
-  const card=new (c.registered.get('spot-trace-history-card'))();
-  card.shadowRoot={querySelector:()=>({clientWidth:800,clientHeight:600})};
-  card.tracks=Array.from({length:4},()=>({points:Array.from({length:40000},()=>({lat:-37,lon:145}))}));
-  card.fit();
-  assert.equal(Number.isFinite(card.cx),true);
-  assert.equal(Number.isFinite(card.cy),true);
-  assert.equal(card.zoom>=1&&card.zoom<=16,true);
-});
-
-function wheelEvent(deltaY,timeStamp,extra={}) {
-  return {deltaY,timeStamp,deltaMode:0,preventDefault(){},...extra};
-}
-
-test('trackpad movements accumulate and rapid wheel events do not race through zoom levels', () => {
-  const {card}=tripCard();
-  for(let i=0;i<9;i++)card.wheelZoom(wheelEvent(-10,i*10));
-  assert.equal(card.zoom,6);
-  card.wheelZoom(wheelEvent(-10,90));
-  assert.equal(card.zoom,7);
-  for(let i=100;i<200;i+=10)card.wheelZoom(wheelEvent(-100,i));
-  assert.equal(card.zoom,7);
-  card.wheelZoom(wheelEvent(-1,220));
-  assert.equal(card.zoom,8);
-  // No timer applies additional zoom after the gesture stops.
-  assert.equal(card.wheelDelta,0);
-});
-
-test('wheel zoom preserves the map location under the cursor and respects zoom bounds', () => {
-  const {card,node}=tripCard();
-  node('.map').getBoundingClientRect=()=>({left:100,top:50,width:800,height:400});
-  const anchor={clientX:700,clientY:100};
-  const point=()=>[card.cx+200/(256*2**card.zoom),card.cy-150/(256*2**card.zoom)];
-  const before=point();
-  card.wheelZoom(wheelEvent(-100,0,anchor));
-  assert.equal(card.zoom,7);
-  assert.ok(Math.abs(point()[0]-before[0])<1e-12);
-  assert.ok(Math.abs(point()[1]-before[1])<1e-12);
-  card.wheelZoom(wheelEvent(100,200,anchor));
-  assert.equal(card.zoom,6);
-  assert.ok(Math.abs(card.cx-.5)<1e-12);
-  assert.ok(Math.abs(card.cy-.5)<1e-12);
-  card.zoom=17;
-  const centre=[card.cx,card.cy];
-  card.wheelZoom(wheelEvent(-100,400,anchor));
-  assert.equal(card.zoom,17);
-  assert.deepEqual([card.cx,card.cy],centre);
-});
-
-test('line and page wheel units normalize and zero movement never zooms', () => {
-  const {card}=tripCard();
-  card.wheelZoom(wheelEvent(0,0));assert.equal(card.zoom,6);
-  card.wheelZoom(wheelEvent(3,10,{deltaMode:1}));assert.equal(card.zoom,5);
-  card.wheelZoom(wheelEvent(-1,250,{deltaMode:2}));assert.equal(card.zoom,6);
-});
-
-test('wheel gesture pauses and direction changes discard leftover movement', () => {
-  const {card}=tripCard();
-  card.wheelZoom(wheelEvent(-60,0));
-  card.wheelZoom(wheelEvent(-60,300));assert.equal(card.zoom,6);
-  card.wheelZoom(wheelEvent(60,310));assert.equal(card.zoom,6);
-  card.wheelZoom(wheelEvent(40,320));assert.equal(card.zoom,5);
-});
-
 test('trip timeline scrubs to the last known fix without interpolating gaps or future positions', () => {
   const {card,node}=tripCard();
   card.trips=[{id:'trip',name:'Camping'}];node('.trip-select').value='trip';
@@ -454,36 +344,6 @@ test('new range queries reset playback and late responses cannot replace the lat
   pending[0]([{time:100,lat:-38,lon:146}]);await first;
   assert.equal(card.tracks[0].points,recent);
   assert.equal(card.playbackRange.start,Date.parse('2026-06-01T00:00:00')/1000);
-});
-
-test('map draws playback markers only for vehicles with an earlier recorded fix', () => {
-  const c=cardContext();
-  const element=tag=>({tag,style:{},dataset:{},attrs:{},children:[],
-    setAttribute(name,value){this.attrs[name]=value},
-    append(child){this.children.push(child)},replaceChildren(){this.children=[]},remove(){},
-  });
-  c.context.document={createElement:tag=>element(tag),createElementNS:(_,tag)=>element(tag)};
-  vm.runInContext(src,c.context);
-  const card=new (c.registered.get('spot-trace-history-card'))();
-  const nodes=new Map();
-  card.shadowRoot={querySelector:selector=>{
-    if(!nodes.has(selector))nodes.set(selector,element(selector));return nodes.get(selector);
-  }};
-  Object.assign(card.shadowRoot.querySelector('.map'),{clientWidth:200,clientHeight:100});
-  card.zoom=6;card.cx=.5;card.cy=.5;card.tileNodes=new Map();card.tileUrl='https://example.test/{z}/{x}/{y}';
-  card.settings={};card.devices=[{device:'car',entry_id:'a'},{device:'trailer',entry_id:'b'}];
-  card.tracks=[{d:card.devices[0],points:[{time:100,lat:-37,lon:145},{time:200,lat:-38,lon:146}]},
-               {d:card.devices[1],points:[{time:250,lat:-39,lon:147}]}];
-  card.playbackTime=150;card.draw();
-  let markers=nodes.get('svg').children.find(node=>node.tag==='g').children.filter(node=>node.tag==='circle');
-  assert.equal(markers.length,1);
-  const x=card.merc(-37,145)[0]*256*2**6-(.5*256*2**6-100);
-  assert.equal(markers[0].attrs.cx,x);
-  const originalPath=nodes.get('svg').children[0];
-  card.playbackTime=300;card.drawMarkers();
-  assert.equal(nodes.get('svg').children[0],originalPath);
-  markers=nodes.get('svg').children.find(node=>node.tag==='g').children.filter(node=>node.tag==='circle');
-  assert.equal(markers.length,2);
 });
 
 function playbackCard() {
@@ -561,4 +421,148 @@ test('a delayed animation frame cannot jump minutes of wall-clock time', () => {
   card.playbackRange.end=100000;
   card.startPlayback();advance(0);advance(10000);
   assert.equal(card.playbackTime,900);
+});
+
+// Arrays built inside the card's VM context are not deepEqual to this realm's arrays.
+const sameJSON=(actual,expected,message)=>assert.equal(JSON.stringify(actual),JSON.stringify(expected),message);
+
+function fakeLeaflet() {
+  const made={maps:[],tiles:[],polylines:[],markers:[],icons:[]};
+  const group=()=>({layers:new Set(),addTo(){return this},addLayer(layer){this.layers.add(layer);return this},
+    removeLayer(layer){this.layers.delete(layer);return this},clearLayers(){this.layers.clear();return this}});
+  const layer=props=>({...props,addTo(target){target.addLayer?.(this);return this}});
+  const L={
+    map:(container,options)=>{const map={container,options,fitted:[],resized:0,
+      setView(){return this},fitBounds(bounds,opts){this.fitted.push([bounds,opts]);return this},invalidateSize(){this.resized++;return this}};
+      made.maps.push(map);return map},
+    tileLayer:(url,options)=>{const tiles={...layer({url,options}),handlers:{},on(name,fn){this.handlers[name]=fn;return this}};made.tiles.push(tiles);return tiles},
+    layerGroup:group,
+    polyline:(latlngs,options)=>{const line=layer({latlngs,options});made.polylines.push(line);return line},
+    marker:(latlng,options)=>{const marker={...layer({latlng,options}),moves:0,setLatLng(next){this.latlng=next;this.moves++;return this}};made.markers.push(marker);return marker},
+    divIcon:options=>{made.icons.push(options);return {options}},
+  };
+  return {L,made};
+}
+
+function leafletCard(config={}) {
+  const c=cardContext();
+  const resize=[];
+  c.context.ResizeObserver=class {constructor(fn){resize.push(fn)} observe() {} disconnect() {}};
+  const element=tag=>({tag,style:{},attrs:{},children:[],setAttribute(name,value){this.attrs[name]=value},append(...children){this.children.push(...children)}});
+  c.context.document={hidden:false,addEventListener(){},removeEventListener(){},createElement:element,createTextNode:text=>({textContent:text})};
+  vm.runInContext(src,c.context);
+  const Card=c.registered.get('spot-trace-history-card');
+  const leaflet=fakeLeaflet();let loads=0;
+  Card.loadLeaflet=async()=>{loads++;return leaflet.L};
+  const card=new Card();
+  const nodes=new Map();
+  const node=selector=>{
+    if(!nodes.has(selector)) nodes.set(selector,{value:'',textContent:'',clientWidth:0,clientHeight:0,children:[],
+      addEventListener(){},replaceChildren(){this.children=[]},append(child){this.children.push(child)}});
+    return nodes.get(selector);
+  };
+  card.attachShadow=()=>{card.shadowRoot={querySelector:node}};
+  card.setConfig({type:'custom:spot-trace-history-card',...config});
+  card.devices=[{entry_id:'a',device:'car',name:'Car',icon:'mdi:van-utility'},{entry_id:'b',device:'trailer',name:'Trailer'}];
+  return {card,node,...leaflet,loads:()=>loads,resize:()=>resize.forEach(fn=>fn())};
+}
+
+test('the map loads the bundled Leaflet once, with smooth zoom and the configured tile provider', async () => {
+  const {card,made,loads}=leafletCard({tile_url:'https://tiles.example/{z}/{x}/{y}.png',tile_attribution:'Example tiles'});
+  await Promise.all([card.ensureMap(),card.ensureMap()]);
+  assert.equal(loads(),1);
+  assert.equal(made.maps.length,1);
+  const options=made.maps[0].options;
+  assert.ok(options.zoomSnap<1,'zoom must not be limited to whole levels');
+  assert.ok(options.inertiaMaxSpeed<=600,'drag momentum must be capped');
+  assert.equal(options.minZoom,1);assert.equal(options.maxZoom,17);
+  assert.equal(made.tiles[0].url,'https://tiles.example/{z}/{x}/{y}.png');
+  assert.equal(made.tiles[0].options.attribution,'Example tiles');
+  assert.equal(made.tiles[0].options.referrerPolicy,'strict-origin-when-cross-origin');
+  assert.match(src,/leaflet\.css\?v=\$\{LEAFLET_VERSION\}/);
+});
+
+test('a failed Leaflet load is reported and can be retried', async () => {
+  const {card,node,L}=leafletCard();
+  card.constructor.loadLeaflet=async()=>{throw Error('offline')};
+  await card.ensureMap();
+  assert.match(node('.note').textContent,/Unable to load the map: offline/);
+  card.constructor.loadLeaflet=async()=>L;
+  await card.ensureMap();
+  assert.ok(card.map);
+});
+
+test('tile failures are reported at most every 30 seconds', async () => {
+  const {card,node,made}=leafletCard();
+  await card.ensureMap();
+  made.tiles[0].handlers.tileerror();
+  assert.match(node('.note').textContent,/tiles failed to load/);
+  node('.note').textContent='';made.tiles[0].handlers.tileerror();
+  assert.equal(node('.note').textContent,'');
+  assert.equal(card.tileFailures,2);
+});
+
+test('fit waits for a sized map and covers every vehicle without spreading arrays', async () => {
+  const {card,node,made,resize}=leafletCard();
+  await card.ensureMap();
+  card.tracks=Array.from({length:4},(_,i)=>({d:card.devices[0],points:Array.from({length:40000},()=>({lat:-37-i,lon:145+i}))}));
+  card.fit();
+  assert.equal(made.maps[0].fitted.length,0);
+  Object.assign(node('.map'),{clientWidth:800,clientHeight:600});
+  resize();
+  assert.equal(made.maps[0].resized,1);
+  sameJSON(made.maps[0].fitted[0][0],[[-40,145],[-37,148]]);
+  assert.equal(made.maps[0].fitted[0][1].maxZoom,16);
+  resize();
+  assert.equal(made.maps[0].fitted.length,1,'a later resize must not undo the user\'s pan or zoom');
+  card.tracks=[];card.fit();
+  assert.equal(made.maps[0].fitted.length,1);
+});
+
+test('tracks drawn before Leaflet loads appear and fit once it is ready', async () => {
+  const {card,node,made}=leafletCard();
+  Object.assign(node('.map'),{clientWidth:800,clientHeight:600});
+  card.tracks=[{d:card.devices[0],points:[{time:1,lat:-37,lon:145},{time:2,lat:-38,lon:146}]}];
+  card.draw();card.fit();
+  await card.ensureMap();
+  assert.equal(made.polylines.length,1);
+  sameJSON(made.polylines[0].latlngs,[[-37,145],[-38,146]]);
+  assert.equal(made.polylines[0].options.color,'#1976d2');
+  assert.equal(made.maps[0].fitted.length,1);
+});
+
+test('vehicle markers use each vehicle\'s icon and colour, and a dot when it has none', async () => {
+  const {card,made}=leafletCard({devices:{'b:trailer':{icon:'mdi:caravan',color:'#123456'}}});
+  card.devices.push({entry_id:'c',device:'bike',name:'Bike'});
+  await card.ensureMap();
+  card.tracks=card.devices.map(d=>({d,points:[{time:1,lat:-37,lon:145}]}));
+  card.draw();
+  const icons=made.icons.map(icon=>icon.html.children[0]?.attrs.icon);
+  sameJSON(icons,['mdi:van-utility','mdi:caravan',undefined]);
+  assert.equal(made.icons[1].html.style.background,'#123456');
+  assert.equal(made.icons[1].className,'','Leaflet\'s default white box must not wrap the marker');
+  sameJSON(made.icons[0].iconAnchor,[15,15]);
+  sameJSON(made.icons[2].iconSize,[16,16]);
+  assert.equal(made.markers[0].options.title,'Car');
+});
+
+test('playback moves existing markers and shows only vehicles with an earlier fix', async () => {
+  const {card,made}=leafletCard();
+  await card.ensureMap();
+  card.tracks=[{d:card.devices[0],points:[{time:100,lat:-37,lon:145},{time:200,lat:-38,lon:146}]},
+               {d:card.devices[1],points:[{time:250,lat:-39,lon:147}]}];
+  card.playbackTime=150;card.draw();
+  assert.equal(card.markerLayer.layers.size,1);
+  sameJSON(made.markers[0].latlng,[-37,145]);
+  const lines=made.polylines.length;
+  card.playbackTime=300;card.drawMarkers();
+  assert.equal(made.polylines.length,lines,'playback must not redraw routes');
+  assert.equal(made.markers.length,2,'the car marker is moved, not rebuilt');
+  assert.equal(made.markers[0].moves,1);
+  sameJSON(made.markers[0].latlng,[-38,146]);
+  assert.equal(card.markerLayer.layers.size,2);
+  card.playbackTime=150;card.drawMarkers();
+  assert.equal(card.markerLayer.layers.size,1);
+  card.playbackTime=null;card.drawMarkers();
+  sameJSON(made.markers[0].latlng,[-38,146]);
 });
