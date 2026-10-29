@@ -51,8 +51,10 @@ A disabled tracker's leftover device can then be deleted from its device page
 recreates it. Devices with an enabled tracker cannot be deleted.
 
 For bug reports, use **Download diagnostics** on the feed's **⋮** menu. The file
-redacts the feed ID, password and coordinates, and summarizes each messenger's
-archive (position counts and first/latest times) and the last update status.
+redacts the feed ID, password, coordinates, messenger IDs and device names. Each
+messenger appears only as `device_1`, `device_2`, ..., which links its archive
+summary (position counts and first/latest times) to its settings. The last update
+status is included.
 Devices with the same name are distinguished by messenger ID in the selector.
 This UI still needs validation in a live Home Assistant instance.
 
