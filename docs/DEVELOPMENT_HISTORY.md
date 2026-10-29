@@ -118,3 +118,15 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Replaced per-event wheel jumps with normalized accumulated movement, one-step caps, and a 120ms minimum between wheel zoom steps. Small gestures no longer cause immediate level changes; pauses/direction changes discard leftover movement. No delayed timers continue zooming after input stops.
 - Anchored wheel zoom under the pointer by adjusting the map centre around the new scale. Integer tile zoom levels and centre-based +/− controls are retained.
 - Added tests for trackpad accumulation/rate limiting, cursor anchoring, bounds, delta units, zero movement, and gesture resets. Live HA/browser gesture feel remains unverified.
+
+## Import feedback (29 October 2026)
+
+- Added persistent HA completion notifications with inserted, duplicate, skipped, source-total counts and valid source dates. Optional action response data adds per-destination counts. Failures replace stale success notifications; existing automations can continue without requesting a response.
+- Added report wrappers around GPX/iOS parsers, exact insert counts from SQLite connection changes, and a separately testable action registration module. The map filter reminder explains why older successfully imported history may be hidden.
+- Updated importer tests and added notification, response, failure, and parser-count tests. Full checks: 94 Python tests and 30 JavaScript tests passed. Live HA response/notification presentation remains unverified.
+
+## Trip playback stage 1 (29 October 2026)
+
+- Added opt-in timeline scrubbing for saved trips. Markers show each included vehicle's last recorded fix at/before the selected time, with per-vehicle timestamps and no invented interpolation. Before its first loaded fix a vehicle has no marker. Full routes remain visible for context.
+- Timeline mode resets for new history queries and when leaving the trip filter. A request-generation check prevents late query responses from overwriting newer selections. Empty trips disable playback, and hitting the point cap displays an incomplete-history notice.
+- Added tests for gaps/boundaries, empty trips, reset/race handling, and rendered marker positions. Play/Pause and speed controls remain the next stage; live HA UI validation remains necessary.

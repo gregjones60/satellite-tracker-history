@@ -1,5 +1,6 @@
 """Plan and perform GPX imports across independently configured feeds."""
-from .gpx import parse_gpx
+from datetime import datetime, timezone
+from .gpx import parse_gpx_report
 
 
 def plan_import(points, feeds, device_mapping=None, feed_mapping=None, feed_id=None, entry_id=None):
@@ -43,7 +44,7 @@ def plan_import(points, feeds, device_mapping=None, feed_mapping=None, feed_id=N
 
 
 async def async_import_gpx(hass, coordinators, source, data):
-    return await async_import_history(hass, coordinators, source, data, parse_gpx)
+    return await async_import_history(hass, coordinators, source, data, parse_gpx_report)
 
 
 async def async_import_history(hass, coordinators, source, data, parser):
@@ -57,11 +58,21 @@ async def async_import_history(hass, coordinators, source, data, parser):
         latest = await hass.async_add_executor_job(coordinator.store.latest, coordinator.feed)
         feeds.append({'entry_id': entry_id, 'feed_id': coordinator.feed,
                       'names': names, 'devices': set(latest)})
-    points = await hass.async_add_executor_job(parser, source)
+    parsed = await hass.async_add_executor_job(parser, source)
+    points = parsed['positions']
     plan = plan_import(points, feeds, data.get('device_mapping'), data.get('feed_mapping'),
                        data.get('feed_id'), data.get('entry_id'))
+    destinations = []
     for entry_id, positions in plan.items():
         target = by_entry[entry_id]
-        await hass.async_add_executor_job(target.store.insert, target.feed, positions)
+        added = await hass.async_add_executor_job(target.store.insert, target.feed, positions)
+        destinations.append({'entry_id': entry_id, 'feed_id': target.feed, 'valid':len(positions),
+                             'added':added, 'duplicates':len(positions)-added})
         target.async_set_updated_data(await hass.async_add_executor_job(target.store.latest, target.feed))
-    return sum(len(positions) for positions in plan.values())
+    timestamps = [p['time'] for p in points]
+    return {'filename':source.name, 'total':parsed['total'], 'valid':len(points),
+            'added':sum(d['added'] for d in destinations),
+            'duplicates':sum(d['duplicates'] for d in destinations), 'skipped':parsed['skipped'],
+            'start_time':datetime.fromtimestamp(min(timestamps),timezone.utc).isoformat() if timestamps else None,
+            'end_time':datetime.fromtimestamp(max(timestamps),timezone.utc).isoformat() if timestamps else None,
+            'destinations':destinations}

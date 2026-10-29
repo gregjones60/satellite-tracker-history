@@ -98,8 +98,10 @@ class Store:
 
     def insert(self, feed, points):
         with self.connect() as db:
+            before = db.total_changes
             db.executemany('INSERT OR IGNORE INTO positions VALUES (?,?,?,?,?,?,?,?)',
                 [(feed, p['id'], p['device'], p['name'], p['time'], p['lat'], p['lon'], p['type']) for p in points])
+            return db.total_changes - before
 
     def device_names(self, feed):
         with self.connect() as db:

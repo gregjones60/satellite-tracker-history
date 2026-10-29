@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 
 NS = {'g': 'http://www.topografix.com/GPX/1/1'}
 
-def parse_gpx(path, device_ids=None):
+def parse_gpx(path, device_ids=None, *, report=False):
     """Return feed-compatible positions; device_ids maps GPX track names to messenger IDs."""
     device_ids = device_ids or {}
     if Path(path).stat().st_size > 100 * 1024 * 1024:
@@ -14,12 +14,15 @@ def parse_gpx(path, device_ids=None):
     if root.tag != '{http://www.topografix.com/GPX/1/1}gpx':
         raise ValueError('Expected a GPX 1.1 document')
     positions = []
+    total = 0
     for track in root.findall('g:trk', NS):
+        track_points = track.findall('.//g:trkpt', NS)
+        total += len(track_points)
         name = (track.findtext('g:name', default='', namespaces=NS) or '').strip()
         if not name:
             continue
         device = device_ids.get(name, name)
-        for pt in track.findall('.//g:trkpt', NS):
+        for pt in track_points:
             try:
                 lat, lon = float(pt.attrib['lat']), float(pt.attrib['lon'])
                 stamp = pt.findtext('g:time', namespaces=NS)
@@ -33,4 +36,10 @@ def parse_gpx(path, device_ids=None):
                                   'lat': lat, 'lon': lon, 'type': 'TRACK'})
             except (KeyError, ValueError, OverflowError):
                 continue
+    if report:
+        return {'positions': positions, 'total': total, 'skipped': total - len(positions)}
     return positions
+
+
+def parse_gpx_report(path):
+    return parse_gpx(path, report=True)

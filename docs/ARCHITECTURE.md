@@ -26,6 +26,16 @@ _Reference snapshot: 12 October 2026, based on the latest Device Management UI Z
 
 ## Device options behavior
 
+Trip playback stage 1 is client-side manual scrubbing of loaded history. A saved
+trip enables the timeline, whose bounds are the selected inclusive date period.
+Binary search selects each vehicle's last fix at/before the cursor, without
+interpolation; there is no marker before that vehicle's first loaded fix. Full
+routes stay visible, and per-vehicle timestamps identify stale positions. Turning
+timeline mode off restores latest markers. New track requests reset playback;
+a request-generation guard prevents old responses from replacing newer results.
+Existing date/participant/visibility filters and query limits still apply.
+There is no timer-driven animation in this stage.
+
 Trip participants are stored in the additive nullable `trips.devices` JSON
 column as a list of `{feed_id, device}` references. NULL preserves all-vehicles
 behavior for old trips; explicit empty lists are rejected. Create/update
@@ -44,6 +54,16 @@ Options shape:
 Options updates trigger a config-entry reload. The flow uses HA's read-only `config_entry` property, supplied by its options-flow manager. Disabling the tracker does **not** delete historical positions or filter the map card. Device lists depend on already-stored positions, so a new feed with no messages may show no devices. Metadata is loaded through the executor from the selected feed's SQLite archive, including GPX positions; latest means latest archived fix, not necessarily current live location. Friendly names never replace the messenger ID used for settings.
 
 ## Packaging and validation
+
+History actions are registered by `import_actions.py` with optional response
+support and persistent notification summaries. Report parsers retain the legacy
+list-returning parser API while counting skipped/source rows. `Store.insert`
+returns the connection's inserted-row delta, so polling or concurrent imports
+cannot inflate an import's added count. The shared history workflow returns
+overall and destination counts and the valid source's UTC date range. Invalid
+routing still fails before writes; insertion failures can be partial. Errors
+replace the latest notification and do not return a success report. Notifications
+require the manifest's `persistent_notification` dependency.
 
 - HACS category: Integration. `hacs.json` declares minimum HA version `2026.09.3`.
 - `manifest.json` includes `config_flow`, `http` dependency, `cloud_polling`, documentation URL and version `0.5.2`.

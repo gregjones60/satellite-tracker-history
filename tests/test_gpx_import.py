@@ -36,7 +36,11 @@ async def test_combined_export_routes_known_ids_and_deduplicates(importer):
     seed(store, 'vehicle-feed', 'vehicle-123', 'Vehicle renamed')
     seed(store, 'trailer-feed', 'trailer-456', 'Trailer renamed')
     for _ in range(2):
-        assert await async_import_gpx(hass, entries, SAMPLE, {'device_mapping': MAPPING}) == 4
+        result = await async_import_gpx(hass, entries, SAMPLE, {'device_mapping': MAPPING})
+        assert result['valid'] == 4
+        assert result['added'] == (4 if _ == 0 else 0)
+        assert result['duplicates'] == (0 if _ == 0 else 4)
+        assert result['skipped'] == 0
     assert set(store.latest('vehicle-feed')) == {'vehicle-123'}
     assert set(store.latest('trailer-feed')) == {'trailer-456'}
     assert store.list_devices('vehicle-feed')[0]['count'] == 3
@@ -48,10 +52,12 @@ async def test_combined_export_routes_known_ids_and_deduplicates(importer):
 @pytest.mark.asyncio
 async def test_explicit_feed_mapping_imports_into_empty_feeds(importer):
     hass, entries, store = importer
-    assert await async_import_gpx(hass, entries, SAMPLE, {
+    result = await async_import_gpx(hass, entries, SAMPLE, {
         'device_mapping': MAPPING,
         'feed_mapping': {'Bluey': 'vehicle-feed', 'Ultimate': 'trailer-feed'},
-    }) == 4
+    })
+    assert result['added'] == 4
+    assert len(result['destinations']) == 2
     assert set(store.latest('vehicle-feed')) == {'vehicle-123'}
     assert set(store.latest('trailer-feed')) == {'trailer-456'}
 

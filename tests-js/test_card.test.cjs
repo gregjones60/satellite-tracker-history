@@ -397,3 +397,86 @@ test('wheel gesture pauses and direction changes discard leftover movement', () 
   card.wheelZoom(wheelEvent(60,310));assert.equal(card.zoom,6);
   card.wheelZoom(wheelEvent(40,320));assert.equal(card.zoom,5);
 });
+
+test('trip timeline scrubs to the last known fix without interpolating gaps or future positions', () => {
+  const {card,node}=tripCard();
+  card.trips=[{id:'trip',name:'Camping'}];node('.trip-select').value='trip';
+  const points=[{time:100,lat:-37,lon:145},{time:200,lat:-38,lon:146}];
+  card.tracks=[{d:card.allDevices[0],points},{d:card.allDevices[1],points:[{time:250,lat:-39,lon:147}]}];
+  card.playbackRange={start:50,end:300};card.renderPlayback();
+  assert.equal(node('.playback').hidden,false);
+  assert.equal(node('.playback-slider').disabled,true);
+  node('.playback-enabled').checked=true;card.togglePlayback();
+  assert.equal(card.playbackTime,50);
+  assert.equal(card.playbackPoint(points),null);
+  assert.match(node('.playback-positions').children[0].textContent,/no recorded fix yet/);
+  node('.playback-slider').value='150';node('.playback-slider').oninput();
+  assert.equal(card.playbackPoint(points),points[0]);
+  assert.equal(card.playbackPoint(card.tracks[1].points),null);
+  assert.match(node('.playback-positions').children[0].textContent,/last recorded fix/);
+  card.scrubPlayback(200);assert.equal(card.playbackPoint(points),points[1]);
+  card.scrubPlayback(999);assert.equal(card.playbackTime,300);
+  card.scrubPlayback(-1);assert.equal(card.playbackTime,50);
+  node('.playback-enabled').checked=false;card.togglePlayback();
+  assert.equal(card.playbackTime,null);
+  assert.equal(card.playbackPoint(points),points[1]);
+});
+
+test('leaving a trip clears playback and empty trips cannot start it', () => {
+  const {card,node}=tripCard();
+  card.trips=[{id:'trip'}];node('.trip-select').value='trip';
+  card.tracks=[];card.playbackRange={start:50,end:300};card.renderPlayback();
+  assert.equal(node('.playback-enabled').disabled,true);
+  assert.match(node('.playback-time').textContent,/No loaded positions/);
+  card.tracks=[{d:card.allDevices[0],points:[{time:100}]}];card.renderPlayback();
+  node('.playback-enabled').checked=true;card.togglePlayback();
+  assert.equal(card.playbackTime,50);
+  node('.trip-select').value='';card.syncTripControls();
+  assert.equal(card.playbackTime,null);
+  assert.equal(node('.playback').hidden,true);
+});
+
+test('new range queries reset playback and late responses cannot replace the latest tracks', async () => {
+  const {card,node}=tripCard();
+  card.devices=[card.allDevices[0]];card.selected={'feed-a:vehicle':true};
+  const pending=[];
+  card._hass={callWS:()=>new Promise(resolve=>pending.push(resolve))};
+  card.playbackTime=100;
+  const first=card.loadTracks();
+  assert.equal(card.playbackTime,null);
+  node('.from').value='2026-06-01';node('.to').value='2026-06-02';
+  const second=card.loadTracks();
+  const recent=[{time:200,lat:-37,lon:145}];
+  pending[1](recent);await second;
+  pending[0]([{time:100,lat:-38,lon:146}]);await first;
+  assert.equal(card.tracks[0].points,recent);
+  assert.equal(card.playbackRange.start,Date.parse('2026-06-01T00:00:00')/1000);
+});
+
+test('map draws playback markers only for vehicles with an earlier recorded fix', () => {
+  const c=cardContext();
+  const element=tag=>({tag,style:{},dataset:{},attrs:{},children:[],
+    setAttribute(name,value){this.attrs[name]=value},
+    append(child){this.children.push(child)},replaceChildren(){this.children=[]},remove(){},
+  });
+  c.context.document={createElement:tag=>element(tag),createElementNS:(_,tag)=>element(tag)};
+  vm.runInContext(src,c.context);
+  const card=new (c.registered.get('spot-trace-history-card'))();
+  const nodes=new Map();
+  card.shadowRoot={querySelector:selector=>{
+    if(!nodes.has(selector))nodes.set(selector,element(selector));return nodes.get(selector);
+  }};
+  Object.assign(card.shadowRoot.querySelector('.map'),{clientWidth:200,clientHeight:100});
+  card.zoom=6;card.cx=.5;card.cy=.5;card.tileNodes=new Map();card.tileUrl='https://example.test/{z}/{x}/{y}';
+  card.settings={};card.devices=[{device:'car',entry_id:'a'},{device:'trailer',entry_id:'b'}];
+  card.tracks=[{d:card.devices[0],points:[{time:100,lat:-37,lon:145},{time:200,lat:-38,lon:146}]},
+               {d:card.devices[1],points:[{time:250,lat:-39,lon:147}]}];
+  card.playbackTime=150;card.draw();
+  let markers=nodes.get('svg').children.filter(node=>node.tag==='circle');
+  assert.equal(markers.length,1);
+  const x=card.merc(-37,145)[0]*256*2**6-(.5*256*2**6-100);
+  assert.equal(markers[0].attrs.cx,x);
+  card.playbackTime=300;card.draw();
+  markers=nodes.get('svg').children.filter(node=>node.tag==='circle');
+  assert.equal(markers.length,2);
+});

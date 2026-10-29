@@ -4,7 +4,8 @@
   "codeowners": [],
   "config_flow": true,
   "dependencies": [
-    "http"
+    "http",
+    "persistent_notification"
   ],
   "documentation": "https://github.com/gregjones60/spot-trace-history",
   "integration_type": "hub",

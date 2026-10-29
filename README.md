@@ -138,7 +138,43 @@ instead of silently replacing another trip.
 Selecting multiple trips remains future work. Live Home Assistant UI validation
 remains necessary.
 
+### Explore a trip timeline
+
+Select a saved trip, then enable **Explore trip timeline** above the map. Drag
+the **Time** slider (or use its keyboard arrow keys) to move vehicle markers to
+their last recorded fix at or before that time. The full routes remain visible
+for context. Vehicles with no fix yet in the loaded period have no marker.
+Each vehicle's latest recorded timestamp is listed below the slider, in your
+browser's timezone, so gaps do not imply continuous movement or live tracking.
+
+Turn the timeline off to restore end-of-route markers. Loading different dates,
+trips, or visible vehicles resets timeline mode; leaving the trip filter hides
+it. This first stage provides manual scrubbing; automatic Play/Pause and speed
+controls will follow. It uses the existing loaded history and its query limits,
+so a vehicle reaching 50,000 points is flagged as potentially incomplete.
+
 ## Import GPX history
+
+### Import results
+
+After either GPX or SQLite import, check **Notifications** in Home Assistant.
+The completion report shows newly added locations, duplicates ignored, invalid
+or unnamed records skipped, total source records, destination feed count, and
+the date range of valid source records in UTC. Reimporting a complete file can
+correctly show **0 added** with all valid records counted as duplicates.
+The latest import replaces the previous notification; failures replace it with
+an error notification. If an insertion fails after another feed was written,
+the import may be partial; retrying deduplicates existing fixes.
+
+Both actions also support optional response data for Developer Tools and
+automations (`response_variable`). The response contains `total`, `valid`,
+`added`, `duplicates`, `skipped`, `start_time`, `end_time`, and per-destination
+counts. Dates describe valid source records, including duplicates, rather than
+only newly inserted records. Existing automations need no changes.
+
+After updating, restart HA to register the actions' response support. To see
+older imports on the map, refresh it and choose the matching **Year** or date
+range; importing does not change the map's default recent-history filter.
 
 Put exports under `/config/spot_exports/` and run **Developer Tools → Actions**:
 

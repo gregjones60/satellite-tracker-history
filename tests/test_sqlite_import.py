@@ -92,7 +92,14 @@ async def test_multifeed_import_preserves_types_ids_deduplicates_and_refreshes(s
     store.insert('vehicle-feed', [{'id':'xml-message', 'device':'vehicle-id', 'name':'Bluey',
                                   'time':100, 'lat':-37, 'lon':145, 'type':'UNLIMITED-TRACK'}])
     for _ in range(2):
-        assert await async_import_sqlite(hass, entries, source, data) == 2
+        result = await async_import_sqlite(hass, entries, source, data)
+        assert result['total'] == 3
+        assert result['valid'] == 2
+        assert result['skipped'] == 1
+        assert result['added'] == (1 if _ == 0 else 0)
+        assert result['duplicates'] == (1 if _ == 0 else 2)
+        assert result['start_time'] == '1970-01-01T00:01:40+00:00'
+        assert result['end_time'] == '1970-01-01T00:03:20+00:00'
     assert store.list_devices('vehicle-feed')[0]['count'] == 1
     assert store.list_devices('trailer-feed')[0]['count'] == 1
     assert store.latest('trailer-feed')['trailer-id']['type'] == 'STOP'

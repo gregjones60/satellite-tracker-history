@@ -5,9 +5,6 @@ from pathlib import Path
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 from homeassistant.exceptions import HomeAssistantError
-from .gpx_import import async_import_gpx
-from .sqlite_import import async_import_sqlite
-from .import_paths import import_source
 from datetime import timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.loader import async_get_integration
@@ -20,6 +17,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import SpotAPI
 from .store import Store
+from .import_actions import register_import_actions
 from .trips import ws_trips, ws_create_trip, ws_update_trip, ws_delete_trip
 from .const import DOMAIN, INTERVAL
 
@@ -82,28 +80,7 @@ async def async_setup_entry(hass, entry):
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     await coordinator.async_config_entry_first_refresh()
     await hass.config_entries.async_forward_entry_setups(entry,PLATFORMS)
-    for service, importer, suffixes in [
-        ('import_gpx', async_import_gpx, {'.gpx'}),
-        ('import_sqlite', async_import_sqlite, {'.db', '.sqlite', '.sqlite3'}),
-    ]:
-        if hass.services.has_service(DOMAIN, service):
-            continue
-        async def import_history(call, importer=importer, suffixes=suffixes):
-            # Import only local files under the Home Assistant config directory.
-            entries = [c for c in hass.data.get(DOMAIN, {}).values()
-                       if isinstance(c, SpotCoordinator)]
-            try:
-                source = import_source(hass.config.path(), call.data['filename'], suffixes)
-                count = await importer(hass, entries, source, call.data)
-            except ValueError as exc:
-                raise HomeAssistantError(str(exc)) from exc
-            _LOGGER.info('Processed %d valid historical positions from %s (existing fixes are deduplicated)', count, source.name)
-        hass.services.async_register(DOMAIN, service, import_history,
-            schema=vol.Schema({vol.Required('filename'): cv.string,
-                               vol.Optional('feed_id'): cv.string,
-                               vol.Optional('entry_id'): cv.string,
-                               vol.Optional('feed_mapping'): vol.Schema({cv.string: cv.string}),
-                               vol.Optional('device_mapping'): vol.Schema({cv.string: cv.string})}))
+    register_import_actions(hass, SpotCoordinator)
     if not hass.data[DOMAIN].get('_ws_registered'):
         websocket_api.async_register_command(hass, ws_devices)
         websocket_api.async_register_command(hass, ws_track)

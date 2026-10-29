@@ -16,7 +16,7 @@ class SpotTraceHistoryCard extends HTMLElement {
       .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
       label{display:flex;align-items:center;gap:5px;font-size:13px}input,select{background:var(--ha-card-background,var(--card-background-color,#fff));color:inherit;border:1px solid var(--divider-color,#aaa);border-radius:5px;padding:5px;max-width:100%;box-sizing:border-box}
       .map{flex:1 1 420px;min-height:200px;width:100%;position:relative;overflow:hidden;background:#dce5e7;border-radius:8px;touch-action:none}
-      .controls,.legend,h3,.note{flex-shrink:0}
+      .controls,.legend,h3,.note,.playback{flex-shrink:0}.playback{padding:10px;border:1px solid var(--divider-color,#aaa);border-radius:8px}.playback input[type=range]{flex:1;min-width:100px}.playback-time,.playback-positions{display:block;font-size:12px;margin-top:6px}.playback-positions{max-height:100px;overflow:auto}
       .zoom-controls{position:absolute;top:10px;right:10px;z-index:1;display:flex;flex-direction:column;gap:4px}
       .zoom-controls button{width:40px;height:40px;padding:0;font-size:24px;background:var(--ha-card-background,var(--card-background-color,#fff));box-shadow:0 1px 4px #0004}
       .zoom-controls button:disabled{opacity:.45;cursor:default}
@@ -26,7 +26,7 @@ class SpotTraceHistoryCard extends HTMLElement {
       button{border:1px solid var(--divider-color,#aaa);border-radius:6px;background:transparent;color:inherit;padding:5px 10px;cursor:pointer}
       .trip-dialog{width:min(420px,calc(100vw - 48px));border:1px solid var(--divider-color,#aaa);border-radius:12px;padding:20px;color:inherit;background:var(--ha-card-background,var(--card-background-color,#fff))}.trip-dialog::backdrop{background:#0008}.trip-form{display:flex;flex-direction:column;gap:14px}.trip-form label{display:flex;flex-direction:column;align-items:stretch}.trip-form .trip-vehicle{flex-direction:row;align-items:center;margin:8px 0}.trip-vehicles{max-height:200px;overflow:auto}.trip-error{margin:0;color:var(--error-color,#db4437)}
       .note{font-size:12px;color:var(--secondary-text-color);margin-top:8px}
-      </style><div class="wrap"><h3></h3><div class="controls"><label>Year <select class="year-select" aria-label="Filter by year"><option value="">Custom dates</option></select></label><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="controls trip-controls"><label>Trip <select class="trip-select" aria-label="Saved trip"><option value="">Custom dates</option></select></label><button class="new-trip" type="button">New trip</button><button class="edit-trip" type="button" disabled>Edit trip</button><button class="delete-trip" type="button" disabled>Delete trip</button></div><dialog class="trip-dialog" aria-labelledby="trip-dialog-title"><form class="trip-form"><h3 id="trip-dialog-title" class="trip-dialog-title">New trip</h3><label>Name <input class="trip-name" type="text" required maxlength="100" autofocus></label><label>From <input class="trip-from" type="date" required></label><label>To <input class="trip-to" type="date" required></label><fieldset><legend>Vehicles involved</legend><label class="trip-vehicle"><input class="trip-all-devices" type="checkbox">All vehicles (including future trackers)</label><div class="trip-vehicles"></div></fieldset><p class="trip-error" role="alert"></p><div class="controls"><button class="cancel-trip-edit" type="button">Cancel</button><button class="save-trip" type="submit">Create trip</button></div></form></dialog><div class="legend"></div><div class="map"><div class="tiles"></div><svg xmlns="http://www.w3.org/2000/svg"></svg><div class="zoom-controls" role="group" aria-label="Map zoom"><button type="button" class="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><button type="button" class="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div></div><div class="note" role="status"></div></div>`;
+      </style><div class="wrap"><h3></h3><div class="controls"><label>Year <select class="year-select" aria-label="Filter by year"><option value="">Custom dates</option></select></label><label>From <input class="from" type="date"></label><label>To <input class="to" type="date"></label><button class="refresh">Refresh</button><button class="fit">Fit routes</button></div><div class="controls trip-controls"><label>Trip <select class="trip-select" aria-label="Saved trip"><option value="">Custom dates</option></select></label><button class="new-trip" type="button">New trip</button><button class="edit-trip" type="button" disabled>Edit trip</button><button class="delete-trip" type="button" disabled>Delete trip</button></div><dialog class="trip-dialog" aria-labelledby="trip-dialog-title"><form class="trip-form"><h3 id="trip-dialog-title" class="trip-dialog-title">New trip</h3><label>Name <input class="trip-name" type="text" required maxlength="100" autofocus></label><label>From <input class="trip-from" type="date" required></label><label>To <input class="trip-to" type="date" required></label><fieldset><legend>Vehicles involved</legend><label class="trip-vehicle"><input class="trip-all-devices" type="checkbox">All vehicles (including future trackers)</label><div class="trip-vehicles"></div></fieldset><p class="trip-error" role="alert"></p><div class="controls"><button class="cancel-trip-edit" type="button">Cancel</button><button class="save-trip" type="submit">Create trip</button></div></form></dialog><section class="playback" hidden aria-label="Trip timeline"><label><input class="playback-enabled" type="checkbox">Explore trip timeline</label><label>Time <input class="playback-slider" type="range" step="1" aria-label="Trip playback time" disabled></label><output class="playback-time"></output><div class="playback-positions"></div></section><div class="legend"></div><div class="map"><div class="tiles"></div><svg xmlns="http://www.w3.org/2000/svg"></svg><div class="zoom-controls" role="group" aria-label="Map zoom"><button type="button" class="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><button type="button" class="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div></div><div class="note" role="status"></div></div>`;
     this.shadowRoot.querySelector('h3').textContent=config.title || 'SPOT Trace History';
     const today=new Date(), start=new Date(today.getTime()-this.days*86400000);
     const date=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -35,6 +35,9 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.shadowRoot.querySelector('.year-select').onchange=()=>this.selectYear();
     this.shadowRoot.querySelector('.refresh').onclick=async()=>{await this.loadTrips(this.shadowRoot.querySelector('.trip-select').value);await this.loadTracks()};
     this.trips=[];
+    this.playbackTime=null;this.playbackRange=null;this.trackRequest=0;
+    this.shadowRoot.querySelector('.playback-enabled').onchange=()=>this.togglePlayback();
+    this.shadowRoot.querySelector('.playback-slider').oninput=()=>this.scrubPlayback(Number(this.shadowRoot.querySelector('.playback-slider').value));
     this.editingTrip=null;
     this.shadowRoot.querySelector('.trip-select').onchange=()=>this.selectTrip();
     this.shadowRoot.querySelector('.new-trip').onclick=()=>this.openTripDialog();
@@ -146,6 +149,7 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.shadowRoot.querySelector('.edit-trip').disabled=!selected||Boolean(this.editingTrip);
     this.shadowRoot.querySelector('.delete-trip').disabled=!selected||Boolean(this.editingTrip);
     this.shadowRoot.querySelector('.save-trip').textContent=this.editingTrip?'Save changes':'Create trip';
+    const previous=this.playbackTime;this.renderPlayback();if(previous!==this.playbackTime)this.draw();
   }
   async selectTrip(){
     this.syncTripControls();
@@ -248,15 +252,54 @@ class SpotTraceHistoryCard extends HTMLElement {
   deviceSettings(d){return this.settings[d.entry_id+':'+d.device] || this.settings[d.device] || this.settings[d.name] || {}}
   palette(i){return ['#1976d2','#e65100','#388e3c','#8e24aa','#c2185b','#00838f'][i%6]}
   status(s){this.shadowRoot.querySelector('.note').textContent=s}
+  playbackPoint(points){
+    if(this.playbackTime==null)return points[points.length-1]||null;
+    let low=0,high=points.length;
+    while(low<high){const mid=Math.floor((low+high)/2);if(points[mid].time<=this.playbackTime)low=mid+1;else high=mid}
+    return low?points[low-1]:null;
+  }
+  togglePlayback(){
+    const checked=this.shadowRoot.querySelector('.playback-enabled').checked;
+    this.playbackTime=checked&&this.playbackRange?this.playbackRange.start:null;
+    this.renderPlayback();this.draw();
+  }
+  scrubPlayback(time){
+    if(this.playbackTime===null||!this.playbackRange||!Number.isFinite(time))return;
+    this.playbackTime=Math.max(this.playbackRange.start,Math.min(this.playbackRange.end,time));
+    this.renderPlayback();this.draw();
+  }
+  renderPlayback(){
+    const trip=this.trips?.find(t=>t.id===this.shadowRoot.querySelector('.trip-select').value);
+    const section=this.shadowRoot.querySelector('.playback');section.hidden=!trip;
+    const available=Boolean(trip&&this.playbackRange&&this.tracks?.some(t=>t.points.length));
+    if(!available)this.playbackTime=null;
+    const enabled=this.shadowRoot.querySelector('.playback-enabled');enabled.disabled=!available;enabled.checked=this.playbackTime!==null;
+    const slider=this.shadowRoot.querySelector('.playback-slider');slider.disabled=!available||this.playbackTime===null;
+    slider.min=String(this.playbackRange?.start||0);slider.max=String(this.playbackRange?.end||0);
+    slider.value=String(this.playbackTime??this.playbackRange?.start??0);
+    const format=time=>new Date(time*1000).toLocaleString(undefined,{timeZoneName:'short'});
+    this.shadowRoot.querySelector('.playback-time').textContent=!available?'No loaded positions for this trip.':this.playbackTime===null?'Enable the timeline to explore recorded positions.':`Timeline: ${format(this.playbackTime)}`;
+    const positions=this.shadowRoot.querySelector('.playback-positions');positions.replaceChildren();
+    if(this.playbackTime!==null)for(const track of this.tracks){
+      const point=this.playbackPoint(track.points),row=document.createElement('div');
+      const name=this.deviceSettings(track.d).name||track.d.name||track.d.device;
+      row.textContent=point?`${name} — last recorded fix: ${format(point.time)}`:`${name} — no recorded fix yet`;
+      positions.append(row);
+    }
+  }
   async loadTracks(){if(!this.devices)return;
+    const request=++this.trackRequest;
     const a=this.shadowRoot.querySelector('.from').value,b=this.shadowRoot.querySelector('.to').value;
     const start=Date.parse(a+'T00:00:00')/1000,end=Date.parse(b+'T23:59:59')/1000;
     if(!Number.isFinite(start)||!Number.isFinite(end)||end<start){this.status('Invalid date range');return}
     if(end-start>366*86400){this.status('Select a date range of up to 366 days');return}
+    this.playbackTime=null;this.playbackRange=null;this.renderPlayback();
     this.status('Loading tracks…');
-    try {this.tracks=await Promise.all(this.tripDevices().filter(d=>this.selected[d.entry_id+':'+d.device]).map(async d=>({d,points:await this._hass.callWS({type:'spot_trace_history/track',entry_id:d.entry_id,device:d.device,start:Math.floor(start),end:Math.floor(end),limit:50000})})));
-      this.fit();this.draw();this.status(this.tracks.reduce((s,t)=>s+t.points.length,0)+' positions displayed. Scroll to zoom, drag to pan. Map ' + this.tileAttribution + '');
-    }catch(e){this.status('Track loading failed: '+e.message)}
+    try {const tracks=await Promise.all(this.tripDevices().filter(d=>this.selected[d.entry_id+':'+d.device]).map(async d=>({d,points:await this._hass.callWS({type:'spot_trace_history/track',entry_id:d.entry_id,device:d.device,start:Math.floor(start),end:Math.floor(end),limit:50000})})));
+      if(request!==this.trackRequest)return;
+      this.tracks=tracks;this.playbackRange={start:Math.floor(start),end:Math.floor(end)};this.renderPlayback();
+      this.fit();this.draw();this.status(this.tracks.reduce((s,t)=>s+t.points.length,0)+' positions displayed. Scroll to zoom, drag to pan. Map ' + this.tileAttribution + (this.tracks.some(t=>t.points.length>=50000)?'. A vehicle reached the 50,000-position limit; its timeline may be incomplete.':''));
+    }catch(e){if(request===this.trackRequest)this.status('Track loading failed: '+e.message)}
   }
   merc(lat,lon){const phi=Math.max(-85.0511,Math.min(85.0511,lat))*Math.PI/180;return [(lon+180)/360,(1-Math.log(Math.tan(phi)+1/Math.cos(phi))/Math.PI)/2]}
   fit(){const pts=this.tracks.flatMap(t=>t.points);if(!pts.length)return;
@@ -307,7 +350,8 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.tracks.forEach((t,i)=>{if(!t.points.length)return;const color=(this.deviceSettings(t.d)||{}).color||this.palette(this.devices.indexOf(t.d));
       const path=document.createElementNS('http://www.w3.org/2000/svg','polyline');path.setAttribute('fill','none');path.setAttribute('stroke',color);path.setAttribute('stroke-width','3');path.setAttribute('stroke-linejoin','round');path.setAttribute('stroke-linecap','round');
       path.setAttribute('points',t.points.map(p=>{const xy=this.merc(p.lat,p.lon);return `${(xy[0]*scale-left).toFixed(1)},${(xy[1]*scale-top).toFixed(1)}`}).join(' '));svg.append(path);
-      const last=t.points[t.points.length-1],xy=this.merc(last.lat,last.lon),marker=document.createElementNS('http://www.w3.org/2000/svg','circle');marker.setAttribute('cx',xy[0]*scale-left);marker.setAttribute('cy',xy[1]*scale-top);marker.setAttribute('r','5');marker.setAttribute('fill',color);marker.setAttribute('stroke','#fff');marker.setAttribute('stroke-width','2');svg.append(marker)
+      const last=this.playbackPoint(t.points);if(!last)return;
+      const xy=this.merc(last.lat,last.lon),marker=document.createElementNS('http://www.w3.org/2000/svg','circle');marker.setAttribute('cx',xy[0]*scale-left);marker.setAttribute('cy',xy[1]*scale-top);marker.setAttribute('r','5');marker.setAttribute('fill',color);marker.setAttribute('stroke','#fff');marker.setAttribute('stroke-width','2');svg.append(marker)
     })
   }
   getCardSize(){return 6}

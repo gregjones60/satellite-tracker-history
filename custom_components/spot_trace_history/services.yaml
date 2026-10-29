@@ -1,6 +1,6 @@
 import_gpx:
   name: Import historical SPOT GPX
-  description: Import an Activity Report GPX from the Home Assistant configuration directory.
+  description: Import an Activity Report GPX and show added, duplicate, and skipped counts in a notification. Optionally returns detailed response data.
   fields:
     filename:
       name: GPX filename
@@ -35,7 +35,7 @@ import_gpx:
         object:
 import_sqlite:
   name: Import SPOT iOS database
-  description: Import valid location history from a SPOT iOS SQLite export stored in the Home Assistant configuration directory.
+  description: Import a SPOT iOS SQLite export and show added, duplicate, and skipped counts in a notification. Optionally returns detailed response data.
   fields:
     filename:
       name: Database filename
