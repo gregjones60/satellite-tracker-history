@@ -5,6 +5,9 @@
 # SPOT Trace History v0.5.12 — multi-feed prototype + bundled card
 
 Each SPOT XML feed is a **separate integration configuration entry**. To add another tracker, go to **Settings → Devices & services → Add integration → SPOT Trace History**, and enter that device's own feed ID (and password if needed). Repeat for each new device. A feed is not assumed to contain all devices.
+The password field is masked. To change a feed's password later, open the feed's
+**⋮** menu on the integration page and choose **Reconfigure**. The feed ID cannot be
+changed, because it identifies that feed's trackers and archived history.
 
 The custom map card automatically queries devices across **all** configured SPOT feed entries, so the vehicle and trailer can be shown together. Do **not** set `entry_id` on the card unless you intentionally want to show just one feed. Each feed can be removed independently through Home Assistant's integrations page. The SQLite archive is retained on removal.
 
@@ -28,7 +31,10 @@ You can change its friendly name or disable its Home Assistant device tracker.
 The **Icon** picker accepts Material Design Icons such as `mdi:car-estate` or
 `mdi:caravan`. Clear it to restore the default icon. Each tracker is also
 associated with a native Home Assistant device, with a stable identity across
-renames and integration reloads.
+renames and integration reloads. The tracker takes its name from that device:
+the friendly name set here becomes the device name, and the device page shows
+the messenger ID as its serial number. A name you give the device on its own
+Home Assistant device page takes precedence.
 
 For the standard settings shown in Home Assistant's entity editor—entity ID,
 area, labels, enabled/visible flags, and voice assistant exposure—open the tracker
@@ -40,6 +46,13 @@ These settings are managed by HA's registries, so they are not duplicated in
 the integration options. See [HA entity customization](https://www.home-assistant.io/docs/configuration/customizing-devices/).
 
 Disabling the tracker keeps collecting positions and preserves map history.
+A disabled tracker's leftover device can then be deleted from its device page
+(**⋮ → Delete**); its archived history is kept, and re-enabling the tracker
+recreates it. Devices with an enabled tracker cannot be deleted.
+
+For bug reports, use **Download diagnostics** on the feed's **⋮** menu. The file
+redacts the feed ID, password and coordinates, and summarizes each messenger's
+archive (position counts and first/latest times) and the last update status.
 Devices with the same name are distinguished by messenger ID in the selector.
 This UI still needs validation in a live Home Assistant instance.
 
