@@ -12,6 +12,8 @@ This updates the version fields and README, and embeds the version in the ZIP's 
 After building, run `python scripts/validate_release.py` to validate the actual
 ZIP. An explicit artifact/version can be checked with
 `python scripts/validate_release.py dist/spot_trace_history-0.5.12.zip --version 0.5.12`.
+Add `--ref v0.5.12` to also compare every packaged file with the Git tag HACS
+uses. Both the tag's files and the current checkout must match the ZIP.
 The check requires Node.js and verifies the package's complete file list,
 byte-for-byte agreement with integration source, manifest version/domain, and
 ZIP integrity. It executes the packaged card in a minimal browser-like test
@@ -29,10 +31,15 @@ and enable GitHub Actions. CI runs on pushes to every branch and on pull request
 To publish, push changes to `main`; no manual patch-version bump is needed.
 After all CI jobs succeed for that push, the release workflow checks out the
 tested commit and increments the highest stable version found in the manifest
-or existing `vX.Y.Z` tags (for example, `0.5.2` becomes `0.5.3`). It updates the
+or existing `vX.Y.Z` tags and GitHub releases, including drafts (for example,
+`0.5.2` becomes `0.5.3`). Published version names are never reused, even if their
+Git tags were deleted. It updates the
 manifest, package metadata, and README, then builds and validates the archive.
 The workflow commits these version changes back to `main` and creates the
-matching GitHub release/tag. The bot push uses `GITHUB_TOKEN`, so it does not
+matching GitHub release/tag. The workflow explicitly creates the tag at the
+validated version commit, checks ZIP/source/tag agreement, and verifies the
+remote tag after publishing. HACS currently installs the tagged repository
+contents, so validating only the attached ZIP is insufficient. The bot push uses `GITHUB_TOKEN`, so it does not
 trigger recursive CI/releases. No manual tag push is needed. The repository
 must permit Actions to push to `main`; a protected branch or a newer main commit
 can reject the push, in which case publication stops without forcing changes.

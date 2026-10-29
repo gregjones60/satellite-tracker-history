@@ -7,7 +7,7 @@ import subprocess
 import zipfile
 
 
-def validate_release(root, archive, expected_version=None):
+def validate_release(root, archive, expected_version=None, ref=None):
     source = root / 'custom_components/spot_trace_history'
     manifest = json.loads((source / 'manifest.json').read_text())
     version = expected_version or manifest['version']
@@ -30,6 +30,11 @@ def validate_release(root, archive, expected_version=None):
         for name, path in expected.items():
             if package.read(name) != path.read_bytes():
                 raise ValueError(f'Packaged file differs from source: {name}')
+            if ref is not None:
+                committed = subprocess.run(['git','show',f'{ref}:custom_components/spot_trace_history/{name}'],
+                                           cwd=root,capture_output=True)
+                if committed.returncode or committed.stdout != package.read(name):
+                    raise ValueError(f'Packaged file differs from Git ref {ref}: {name}')
         card = package.read('www/spot-trace-history-card.js')
     check = subprocess.run(['node', str(Path(__file__).with_name('check_packaged_card.cjs'))],
                            input=card, capture_output=True)
@@ -42,12 +47,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('archive', nargs='?', type=Path, help='Defaults to the current version ZIP in dist/')
     parser.add_argument('--version', help='Expected release version, e.g. 0.5.12')
+    parser.add_argument('--ref', help='Also compare every packaged file with this Git tag or commit')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     try:
         version = args.version or json.loads((root/'custom_components/spot_trace_history/manifest.json').read_text())['version']
         archive = args.archive or root/'dist'/f'spot_trace_history-{version}.zip'
-        result = validate_release(root, archive, version)
+        result = validate_release(root, archive, version, args.ref)
         print(f"Release ZIP OK: {archive.name}, version {result['version']}, {result['files']} files")
         print(f"Bundled card SHA-256: {result['card_sha256']}")
         print('Packaged card registration and playback smoke test passed')

@@ -69,6 +69,14 @@ CI builds/checks the archive; Release runs the same gate on its versioned ZIP
 before committing version metadata or publishing. It cannot verify HA's installed
 files, caching, or full browser layout.
 
+Release versions are selected above both existing Git tags and GitHub release
+names (including drafts). An existing release blocks version reuse even if its
+tag is missing. After saving the version commit, the workflow creates/pushes the
+tag explicitly, compares every archived file with that ref via `--ref`, and
+verifies its remote commit after publishing. This matters because HACS is not
+configured with `zip_release` and installs tagged repository contents rather
+than the attached ZIP.
+
 History actions are registered by `import_actions.py` with optional response
 support and persistent notification summaries. Report parsers retain the legacy
 list-returning parser API while counting skipped/source rows. `Store.insert`

@@ -143,3 +143,9 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Uses a single animation-frame loop with capped elapsed gaps, 10Hz marker/text updates, and a separate SVG marker layer so full routes and tiles are retained during playback. Positions continue to use recorded fixes without interpolation or extra backend requests.
 - Added deterministic clock tests for rates, resume/end/replay, loop cleanup, view changes, hidden tabs, and delayed frames. Extended the packaged-card smoke test to require and exercise automatic playback and speed controls.
 - Validation: 106 Python tests, 39 JavaScript tests, and a real local ZIP validation passed. Live HA/browser timing and appearance remain unverified.
+
+## Release tag/source mismatch (29 October 2026)
+
+- Investigated the installed card missing automatic playback: CI and Release succeeded, and the v0.5.12 ZIP contained `startPlayback`, but its tag pointed to an older commit without it. Release logs showed the publishing action reused an existing release after creating a duplicate draft. HACS uses tagged source because `zip_release` is not enabled.
+- Fixed future version selection to include all GitHub release names as well as tags, reject existing releases even when tags are missing, explicitly tag the validated version commit, compare ZIP files with the Git ref, and verify the remote tag after publishing. Existing published releases/tags were not modified.
+- Added regression coverage for reused releases and stale tagged source. Validation: 107 Python tests and 41 JavaScript tests passed. The fix requires a new release; it cannot repair an already-installed older tagged source by itself.

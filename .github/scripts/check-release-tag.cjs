@@ -1,5 +1,14 @@
 // An absent tag is expected for the first release of a version.
 module.exports = async function checkReleaseTag({github, context, core, tag, testedSha}) {
+  // Deleted tags can still have releases pointing at old commits. Never reuse
+  // such a version: release actions can reuse that release and its stale tag.
+  try {
+    await github.rest.repos.getReleaseByTag({...context.repo, tag});
+    core.setFailed(`${tag} already has a GitHub release. Choose a new version instead of overwriting it.`);
+    return;
+  } catch (error) {
+    if (error.status !== 404) throw error;
+  }
   try {
     await github.rest.git.getRef({...context.repo, ref: `tags/${tag}`});
   } catch (error) {

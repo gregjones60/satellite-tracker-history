@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import zipfile
+import subprocess
 
 import pytest
 
@@ -150,6 +151,27 @@ def test_validate_release_rejects_unexpected_version(packaged_project):
     archive = builder.build_release(packaged_project)
     with pytest.raises(ValueError,match='requested release version'):
         validator.validate_release(packaged_project,archive,'0.5.3')
+
+
+def test_validate_release_checks_the_tagged_source_not_just_the_zip(packaged_project):
+    root=packaged_project
+    subprocess.run(['git','init','-q'],cwd=root,check=True)
+    subprocess.run(['git','config','user.name','Release Test'],cwd=root,check=True)
+    subprocess.run(['git','config','user.email','release@example.test'],cwd=root,check=True)
+    builder.build_release(root)
+    subprocess.run(['git','add','.'],cwd=root,check=True)
+    subprocess.run(['git','commit','-qm','Original source'],cwd=root,check=True)
+    subprocess.run(['git','tag','v0.5.2'],cwd=root,check=True)
+    card=root/'custom_components/spot_trace_history/www/spot-trace-history-card.js'
+    card.write_text(card.read_text()+'\n// newer working copy\n')
+    archive=builder.build_release(root)
+    # Source and artifact match and playback works, but the tag is stale.
+    validator.validate_release(root,archive)
+    with pytest.raises(ValueError,match='differs from Git ref'):
+        validator.validate_release(root,archive,ref='v0.5.2')
+    subprocess.run(['git','add','.'],cwd=root,check=True)
+    subprocess.run(['git','commit','-qm','Updated source'],cwd=root,check=True)
+    assert validator.validate_release(root,archive,ref='HEAD')['version']=='0.5.2'
 
 
 def test_successive_releases_increment_version_and_readme(project):
