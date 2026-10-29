@@ -2,7 +2,7 @@
   <img src="branding/logo.png" alt="SPOT Trace History" width="250">
 </p>
 
-# SPOT Trace History v0.5.14 — multi-feed prototype + bundled card
+# SPOT Trace History v0.5.16 — multi-feed prototype + bundled card
 
 Each SPOT XML feed is a **separate integration configuration entry**. To add another tracker, go to **Settings → Devices & services → Add integration → SPOT Trace History**, and enter that device's own feed ID (and password if needed). Repeat for each new device. A feed is not assumed to contain all devices.
 The password field is masked. To change a feed's password later, open the feed's
@@ -17,7 +17,7 @@ Copy `custom_components/spot_trace_history` to `/config/custom_components/spot_t
 
 For HACS, publish this repository with `custom_components/spot_trace_history` at its root, add the GitHub repository URL to HACS as a **custom integration repository**, install, and restart Home Assistant. HACS installation and update do not automatically create a GitHub repository.
 
-The card asset is available at `/spot_trace_history/spot-trace-history-card.js?v=0.5.14` once Home Assistant has restarted. The version is read from the installed integration manifest. Home Assistant's frontend loads the bundled script automatically. If you previously registered `/local/spot-trace-history-card.js` manually, remove that old dashboard resource to avoid loading two card versions.
+The card asset is available at `/spot_trace_history/spot-trace-history-card.js?v=0.5.16` once Home Assistant has restarted. The version is read from the installed integration manifest. Home Assistant's frontend loads the bundled script automatically. If you previously registered `/local/spot-trace-history-card.js` manually, remove that old dashboard resource to avoid loading two card versions.
 
 ## Manage devices
 
@@ -52,8 +52,10 @@ A disabled tracker's leftover device can then be deleted from its device page
 recreates it. Devices with an enabled tracker cannot be deleted.
 
 For bug reports, use **Download diagnostics** on the feed's **⋮** menu. The file
-redacts the feed ID, password and coordinates, and summarizes each messenger's
-archive (position counts and first/latest times) and the last update status.
+redacts the feed ID, password, coordinates, messenger IDs and device names. Each
+messenger appears only as `device_1`, `device_2`, ..., which links its archive
+summary (position counts and first/latest times) to its settings. The last update
+status is included.
 Devices with the same name are distinguished by messenger ID in the selector.
 This UI still needs validation in a live Home Assistant instance.
 

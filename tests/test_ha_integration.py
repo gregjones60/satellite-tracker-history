@@ -332,24 +332,41 @@ async def test_only_disabled_devices_can_be_removed(hass, config_dir, aioclient_
     assert {d["device"] for d in hass.data[DOMAIN].list_devices("feed-a")} == {"vehicle", "trailer"}
 
 
-async def test_diagnostics_redact_feed_access_and_locations(hass, config_dir, aioclient_mock, hass_client):
-    aioclient_mock.get(FEED_URL.format("feed-secret-123456"), text=feed_xml(("vehicle", "Bluey", 100, -37.5, 145.25)))
-    entry = add_entry(hass, "feed-secret-123456", password="hunter2-secret",
-                      options={"devices": {"vehicle": {"enabled": False}}})
+async def test_diagnostics_redact_feed_access_hardware_and_locations(hass, config_dir, aioclient_mock, hass_client):
+    feed = "feed-secret-123456"
+    aioclient_mock.get(FEED_URL.format(feed), text=feed_xml(
+        ("0-8812345", "Bluey Van", 100, -37.5, 145.25), ("0-7754321", "Camper Trailer", 200, -38.25, 146.5)))
+    entry = add_entry(hass, feed, password="hunter2-secret", options={"devices": {
+        "0-7754321": {"name": "Touring Trailer", "enabled": False, "icon": "mdi:caravan"},
+        "0-6600000": {"name": "Old Beacon", "enabled": True},
+    }})
     await setup(hass, entry)
+    # A later failed poll whose SPOT error text echoes the feed ID.
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(FEED_URL.format(feed), text=(
+        f"<response><errors><error>Feed with Id: {feed} is unavailable</error></errors></response>"))
+    await entry.runtime_data.async_refresh()
     assert await async_setup_component(hass, "diagnostics", {})
 
     result = await get_diagnostics_for_config_entry(hass, hass_client, entry)
     text = str(result)
-    for secret in ("feed-secret-123456", "123456", "hunter2-secret", "-37.5", "145.25"):
-        assert secret not in text
+    for secret in (feed, "123456", "hunter2-secret", "-37.5", "145.25", "-38.25",
+                   "0-8812345", "0-7754321", "0-6600000", "Bluey", "Camper", "Touring", "Old Beacon"):
+        assert secret not in text, secret
     assert result["entry"]["data"] == {"feed_id": "**REDACTED**", "password": "**REDACTED**"}
-    assert result["coordinator"]["last_update_success"] is True
-    assert result["archive"] == [{
-        "messenger_id": "vehicle", "positions": 1,
-        "first_position": "1970-01-01T00:01:40+00:00", "latest_position": "1970-01-01T00:01:40+00:00",
-        "latest_message_type": "TRACK", "tracker_enabled": False,
-    }]
+    assert result["coordinator"]["last_update_success"] is False
+    assert result["coordinator"]["last_exception"] == "SPOT API error: Feed with Id: **REDACTED** is unavailable"
+    # Archive entries are sorted by name; aliases link each one to its device settings.
+    assert result["archive"] == [
+        {"device": "device_1", "positions": 1, "first_position": "1970-01-01T00:01:40+00:00",
+         "latest_position": "1970-01-01T00:01:40+00:00", "latest_message_type": "TRACK", "tracker_enabled": True},
+        {"device": "device_2", "positions": 1, "first_position": "1970-01-01T00:03:20+00:00",
+         "latest_position": "1970-01-01T00:03:20+00:00", "latest_message_type": "TRACK", "tracker_enabled": False},
+    ]
+    assert result["entry"]["options"]["devices"] == {
+        "device_2": {"name": "**REDACTED**", "enabled": False, "icon": "mdi:caravan"},
+        "device_3": {"name": "**REDACTED**", "enabled": True},
+    }
 
 
 async def test_import_action_error_is_translated_and_readable(hass, config_dir, aioclient_mock):
