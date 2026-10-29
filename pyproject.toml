@@ -1,6 +1,7 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = ["ha: runs against the real Home Assistant test harness (requirements_test.txt)"]
 
 [tool.ruff]
 target-version = "py313"
