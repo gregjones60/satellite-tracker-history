@@ -9,6 +9,21 @@ heading/card URL to that version. Historical release notes retain their versions
 To build a specific stable version locally, run `python scripts/build_release.py --version 0.5.3`.
 This updates the version fields and README, and embeds the version in the ZIP's manifest.
 
+After building, run `python scripts/validate_release.py` to validate the actual
+ZIP. An explicit artifact/version can be checked with
+`python scripts/validate_release.py dist/spot_trace_history-0.5.12.zip --version 0.5.12`.
+The check requires Node.js and verifies the package's complete file list,
+byte-for-byte agreement with integration source, manifest version/domain, and
+ZIP integrity. It executes the packaged card in a minimal browser-like test
+environment and verifies custom-element registration, playback methods,
+timeline controls, visibility for a selected trip, and scrubbing behavior.
+The output includes the bundled card's SHA-256 fingerprint.
+
+CI builds and validates the package after tests. Release validates the exact
+versioned ZIP before pushing its version commit or publishing. This checks the
+release artifact; it does not verify the files installed in a running HA instance
+or replace live browser testing.
+
 Create a GitHub repository with these files at the root, push to `main`,
 and enable GitHub Actions. CI runs on pushes to every branch and on pull requests.
 To publish, push changes to `main`; no manual patch-version bump is needed.

@@ -59,6 +59,10 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: python scripts/build_release.py --version "$TAG"
       - run: bash scripts/check.sh
+      - name: Validate release package and bundled card
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: python scripts/validate_release.py --version "$RELEASE_VERSION"
       - name: Save release version to main
         id: commit
         env:

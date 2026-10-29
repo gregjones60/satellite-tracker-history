@@ -23,7 +23,7 @@ function cardContext(existing) {
   const registered = new Map(existing ? [['spot-trace-history-card', existing]] : []);
   let definitions = 0;
   const context = vm.createContext({
-    HTMLElement: class {}, window: {},
+    HTMLElement: class {}, window: {}, document:{hidden:false},
     customElements: {
       get: name=>registered.get(name),
       define: (name, cls)=>{
@@ -101,7 +101,10 @@ test('zoom buttons and wheel change scale, respect bounds, and do not drag the m
 function tripCard() {
   const c=cardContext();
   c.context.ResizeObserver=class {observe() {} disconnect() {}};
-  c.context.document={createElement:()=>({style:{},children:[],append(...children){this.children.push(...children)}}),createTextNode:text=>({textContent:text})};
+  const listeners=new Map(),frames=new Map();let nextFrame=0;
+  c.context.requestAnimationFrame=fn=>{const id=++nextFrame;frames.set(id,fn);return id};
+  c.context.cancelAnimationFrame=id=>frames.delete(id);
+  c.context.document={hidden:false,addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name),createElement:()=>({style:{},children:[],append(...children){this.children.push(...children)}}),createTextNode:text=>({textContent:text})};
   vm.runInContext(src,c.context);
   const card=new (c.registered.get('spot-trace-history-card'))();
   const nodes=new Map();
@@ -117,7 +120,7 @@ function tripCard() {
   card.setConfig({type:'custom:spot-trace-history-card'});
   card.fit=()=>{};card.draw=()=>{};
   card.allDevices=[{entry_id:'feed-a',feed_id:'feed-a-id',device:'vehicle',name:'Vehicle'},{entry_id:'feed-b',feed_id:'feed-b-id',device:'trailer',name:'Trailer'}];
-  return {card,node,window:c.context.window};
+  return {card,node,window:c.context.window,frames,document:c.context.document,listeners,advance:time=>{for(const [id,fn] of [...frames]){frames.delete(id);fn(time)}}};
 }
 
 test('saving dates persists a named trip and selecting it filters device queries', async () => {
@@ -472,11 +475,90 @@ test('map draws playback markers only for vehicles with an earlier recorded fix'
   card.tracks=[{d:card.devices[0],points:[{time:100,lat:-37,lon:145},{time:200,lat:-38,lon:146}]},
                {d:card.devices[1],points:[{time:250,lat:-39,lon:147}]}];
   card.playbackTime=150;card.draw();
-  let markers=nodes.get('svg').children.filter(node=>node.tag==='circle');
+  let markers=nodes.get('svg').children.find(node=>node.tag==='g').children.filter(node=>node.tag==='circle');
   assert.equal(markers.length,1);
   const x=card.merc(-37,145)[0]*256*2**6-(.5*256*2**6-100);
   assert.equal(markers[0].attrs.cx,x);
-  card.playbackTime=300;card.draw();
-  markers=nodes.get('svg').children.filter(node=>node.tag==='circle');
+  const originalPath=nodes.get('svg').children[0];
+  card.playbackTime=300;card.drawMarkers();
+  assert.equal(nodes.get('svg').children[0],originalPath);
+  markers=nodes.get('svg').children.find(node=>node.tag==='g').children.filter(node=>node.tag==='circle');
   assert.equal(markers.length,2);
+});
+
+function playbackCard() {
+  const c=tripCard();
+  c.card.trips=[{id:'trip',name:'Camping'}];c.node('.trip-select').value='trip';
+  c.card.tracks=[{d:c.card.allDevices[0],points:[{time:100,lat:-37,lon:145},{time:800,lat:-38,lon:146}]}];
+  c.card.playbackRange={start:0,end:1000};c.card.renderPlayback();
+  return c;
+}
+
+test('Play/Pause resumes position, applies selected speed, and never starts duplicate loops', () => {
+  const {card,node,advance,frames}=playbackCard();
+  node('.playback-play').onclick();card.startPlayback();
+  assert.equal(frames.size,1);
+  assert.equal(card.playbackTime,0);
+  assert.equal(node('.playback-play').textContent,'Pause');
+  advance(0);advance(100);
+  assert.equal(card.playbackTime,360);
+  node('.playback-play').onclick();
+  assert.equal(frames.size,0);
+  assert.equal(node('.playback-play').textContent,'Play');
+  advance(900);assert.equal(card.playbackTime,360);
+  node('.playback-play').onclick();advance(1000);advance(1100);
+  assert.equal(card.playbackTime,720);
+  node('.playback-speed').value='600';node('.playback-speed').onchange();advance(1200);
+  assert.equal(card.playbackTime,780);
+  node('.playback-speed').value='invalid';node('.playback-speed').onchange();
+  assert.equal(card.playbackRate,600);
+  card.scrubPlayback(100);
+  assert.equal(frames.size,0);
+  assert.equal(card.playbackPlaying,false);
+  assert.equal(card.playbackTime,100);
+});
+
+test('playback stops exactly at the end and Replay starts at the beginning', () => {
+  const {card,node,advance,frames}=playbackCard();
+  card.playbackRange.end=500;
+  card.startPlayback();advance(0);advance(250);
+  assert.equal(card.playbackTime,500);
+  assert.equal(card.playbackPlaying,false);
+  assert.equal(frames.size,0);
+  assert.equal(node('.playback-play').textContent,'Replay');
+  node('.playback-play').onclick();
+  assert.equal(card.playbackTime,0);
+  assert.equal(frames.size,1);
+});
+
+test('hiding or detaching the card pauses playback and removes animation work', () => {
+  const {card,document,listeners,frames}=playbackCard();
+  card.startPlayback();document.hidden=true;listeners.get('visibilitychange')();
+  assert.equal(card.playbackPlaying,false);assert.equal(frames.size,0);
+  document.hidden=false;card.startPlayback();
+  assert.equal(frames.size,1);
+  card.disconnectedCallback();
+  assert.equal(frames.size,0);
+  assert.equal(listeners.has('visibilitychange'),false);
+});
+
+test('trip changes, disabling timeline, and new history requests stop playback', async () => {
+  const {card,node,frames}=playbackCard();
+  card.startPlayback();node('.playback-enabled').checked=false;card.togglePlayback();
+  assert.equal(frames.size,0);assert.equal(card.playbackTime,null);
+  card.startPlayback();node('.trip-select').value='';card.syncTripControls();
+  assert.equal(frames.size,0);
+  node('.trip-select').value='trip';card.startPlayback();
+  card.devices=[card.allDevices[0]];card.selected={'feed-a:vehicle':true};
+  card._hass={callWS:async ()=>[]};
+  await card.loadTracks();
+  assert.equal(frames.size,0);assert.equal(card.playbackTime,null);
+  assert.equal(node('.playback-play').disabled,true);
+});
+
+test('a delayed animation frame cannot jump minutes of wall-clock time', () => {
+  const {card,advance}=playbackCard();
+  card.playbackRange.end=100000;
+  card.startPlayback();advance(0);advance(10000);
+  assert.equal(card.playbackTime,900);
 });

@@ -12,6 +12,12 @@ spec = importlib.util.spec_from_file_location(
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
 
+validator_spec = importlib.util.spec_from_file_location(
+    'validate_release', Path(__file__).resolve().parents[1]/'scripts/validate_release.py'
+)
+validator = importlib.util.module_from_spec(validator_spec)
+validator_spec.loader.exec_module(validator)
+
 
 @pytest.fixture
 def project(tmp_path):
@@ -68,6 +74,82 @@ def test_invalid_release_version_does_not_change_project(project, invalid):
 ])
 def test_next_release_version(current, tags, expected):
     assert builder.next_release_version(current, tags) == expected
+
+
+@pytest.fixture
+def packaged_project(project):
+    source = project/'custom_components/spot_trace_history/www'
+    source.mkdir()
+    card = Path(__file__).resolve().parents[1]/'custom_components/spot_trace_history/www/spot-trace-history-card.js'
+    (source/card.name).write_bytes(card.read_bytes())
+    return project
+
+
+def rewrite_archive(archive, change):
+    with zipfile.ZipFile(archive) as z:
+        files = {name:z.read(name) for name in z.namelist()}
+    change(files)
+    with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:
+        for name,content in files.items():
+            z.writestr(name,content)
+
+
+def test_validate_release_runs_packaged_playback_code(packaged_project):
+    archive = builder.build_release(packaged_project)
+    result = validator.validate_release(packaged_project,archive,'0.5.2')
+    assert result['version'] == '0.5.2'
+    assert result['files'] == 3
+    assert len(result['card_sha256']) == 64
+
+
+@pytest.mark.parametrize('problem', ['missing-card','stale-card','stale-backend','extra-file','wrong-version'])
+def test_validate_release_rejects_incorrect_archive_contents(packaged_project,problem):
+    archive = builder.build_release(packaged_project)
+    def change(files):
+        if problem == 'missing-card':
+            del files['www/spot-trace-history-card.js']
+        elif problem == 'stale-card':
+            files['www/spot-trace-history-card.js'] = b'// old card'
+        elif problem == 'stale-backend':
+            files['__init__.py'] = b'# old backend'
+        elif problem == 'extra-file':
+            files['debug.txt'] = b'unexpected'
+        else:
+            files['manifest.json'] = b'{"domain":"spot_trace_history","version":"0.5.1"}'
+    rewrite_archive(archive,change)
+    with pytest.raises(ValueError,match='Release file list|differs from source|Packaged manifest'):
+        validator.validate_release(packaged_project,archive)
+
+
+@pytest.mark.parametrize('source_change', ['missing-playback','missing-controls','missing-play-button','invalid-js'])
+def test_validate_release_rejects_broken_source_even_when_archive_matches(packaged_project,source_change):
+    card = packaged_project/'custom_components/spot_trace_history/www/spot-trace-history-card.js'
+    if source_change == 'missing-playback':
+        card.write_text(card.read_text().replace('renderPlayback','oldRenderPlayback'))
+    elif source_change == 'missing-controls':
+        card.write_text(card.read_text().replace('class="playback-enabled"','class="missing-control"'))
+    elif source_change == 'missing-play-button':
+        card.write_text(card.read_text().replace('startPlayback','oldStartPlayback'))
+    else:
+        card.write_text('(() => {')
+    archive = builder.build_release(packaged_project)
+    with pytest.raises(ValueError,match='runtime smoke test'):
+        validator.validate_release(packaged_project,archive)
+
+
+def test_validate_release_rejects_duplicate_zip_entries(packaged_project):
+    archive = builder.build_release(packaged_project)
+    with zipfile.ZipFile(archive,'a') as z:
+        with pytest.warns(UserWarning,match='Duplicate name'):
+            z.writestr('www/spot-trace-history-card.js','// duplicate')
+    with pytest.raises(ValueError,match='duplicate file entries'):
+        validator.validate_release(packaged_project,archive)
+
+
+def test_validate_release_rejects_unexpected_version(packaged_project):
+    archive = builder.build_release(packaged_project)
+    with pytest.raises(ValueError,match='requested release version'):
+        validator.validate_release(packaged_project,archive,'0.5.3')
 
 
 def test_successive_releases_increment_version_and_readme(project):

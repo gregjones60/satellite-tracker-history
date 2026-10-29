@@ -26,7 +26,7 @@ _Reference snapshot: 12 October 2026, based on the latest Device Management UI Z
 
 ## Device options behavior
 
-Trip playback stage 1 is client-side manual scrubbing of loaded history. A saved
+Trip playback supports client-side scrubbing and automatic animation of loaded history. A saved
 trip enables the timeline, whose bounds are the selected inclusive date period.
 Binary search selects each vehicle's last fix at/before the cursor, without
 interpolation; there is no marker before that vehicle's first loaded fix. Full
@@ -34,7 +34,12 @@ routes stay visible, and per-vehicle timestamps identify stale positions. Turnin
 timeline mode off restores latest markers. New track requests reset playback;
 a request-generation guard prevents old responses from replacing newer results.
 Existing date/participant/visibility filters and query limits still apply.
-There is no timer-driven animation in this stage.
+Play/Pause uses one requestAnimationFrame loop with real elapsed time and an
+explicit simulated-seconds-per-second speed. Long frame gaps are capped at
+250ms. Marker/text updates are capped at 10Hz and use a separate SVG marker
+layer, retaining existing routes and tiles. Playback stops at the end (Replay),
+pauses on scrubbing/visibility changes/disconnect, and is canceled for new history
+queries or leaving the trip. Returning to a view does not resume automatically.
 
 Trip participants are stored in the additive nullable `trips.devices` JSON
 column as a list of `{feed_id, device}` references. NULL preserves all-vehicles
@@ -54,6 +59,15 @@ Options shape:
 Options updates trigger a config-entry reload. The flow uses HA's read-only `config_entry` property, supplied by its options-flow manager. Disabling the tracker does **not** delete historical positions or filter the map card. Device lists depend on already-stored positions, so a new feed with no messages may show no devices. Metadata is loaded through the executor from the selected feed's SQLite archive, including GPX positions; latest means latest archived fix, not necessarily current live location. Friendly names never replace the messenger ID used for settings.
 
 ## Packaging and validation
+
+`scripts/validate_release.py` checks the built ZIP against every distributable
+source file, rejects missing/extra/duplicate entries and mismatched manifests,
+and verifies byte equality and CRC integrity. `check_packaged_card.cjs` executes
+the archived JavaScript in a Node VM with minimal DOM doubles and tests
+registration, timeline controls, and playback behavior. It prints the card hash.
+CI builds/checks the archive; Release runs the same gate on its versioned ZIP
+before committing version metadata or publishing. It cannot verify HA's installed
+files, caching, or full browser layout.
 
 History actions are registered by `import_actions.py` with optional response
 support and persistent notification summaries. Report parsers retain the legacy

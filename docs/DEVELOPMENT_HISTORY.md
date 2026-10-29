@@ -130,3 +130,16 @@ _Compiled from this ChatGPT Project conversation and the uploaded source snapsho
 - Added opt-in timeline scrubbing for saved trips. Markers show each included vehicle's last recorded fix at/before the selected time, with per-vehicle timestamps and no invented interpolation. Before its first loaded fix a vehicle has no marker. Full routes remain visible for context.
 - Timeline mode resets for new history queries and when leaving the trip filter. A request-generation check prevents late query responses from overwriting newer selections. Empty trips disable playback, and hitting the point cap displays an incomplete-history notice.
 - Added tests for gaps/boundaries, empty trips, reset/race handling, and rendered marker positions. Play/Pause and speed controls remain the next stage; live HA UI validation remains necessary.
+
+## Release artifact validation (29 October 2026)
+
+- Added a release ZIP gate in CI and Release: full source/file-list comparison, manifest/domain/version validation, duplicate-entry rejection, CRC checks, and a bundled-card SHA-256 fingerprint.
+- The archived JS is executed in a Node VM with DOM doubles to check registration, required playback methods, timeline controls, selected-trip visibility, and scrubbing. This catches stale/missing code even when source and ZIP agree, but does not check the installed HA asset or real browser rendering.
+- Added 11 artifact regression cases. Validation: 105 Python tests and 34 JavaScript tests pass; a real local release ZIP also passed the new gate. No release published by this task.
+
+## Automatic trip playback (29 October 2026)
+
+- Added Play/Pause/Replay and five speeds (1 minute through 1 day of trip time per real second). Play enables the timeline automatically, resumes paused positions, and stops exactly at the end. Scrubbing pauses; hidden tabs, disconnected cards, and changed history cancel animation. No automatic resume on returning to a tab.
+- Uses a single animation-frame loop with capped elapsed gaps, 10Hz marker/text updates, and a separate SVG marker layer so full routes and tiles are retained during playback. Positions continue to use recorded fixes without interpolation or extra backend requests.
+- Added deterministic clock tests for rates, resume/end/replay, loop cleanup, view changes, hidden tabs, and delayed frames. Extended the packaged-card smoke test to require and exercise automatic playback and speed controls.
+- Validation: 106 Python tests, 39 JavaScript tests, and a real local ZIP validation passed. Live HA/browser timing and appearance remain unverified.

@@ -147,10 +147,17 @@ for context. Vehicles with no fix yet in the loaded period have no marker.
 Each vehicle's latest recorded timestamp is listed below the slider, in your
 browser's timezone, so gaps do not imply continuous movement or live tracking.
 
+Click **Play** to advance automatically and **Pause** to stop at the current
+position. **Speed** selects trip time per real second: 1 minute, 10 minutes,
+1 hour (default), 6 hours, or 1 day. You can change speed while playing. At the
+end, playback stops and the button becomes **Replay**. Scrubbing pauses playback
+so you can inspect a particular moment. Hiding the browser tab or leaving the
+dashboard also pauses it; returning does not automatically resume.
+
 Turn the timeline off to restore end-of-route markers. Loading different dates,
 trips, or visible vehicles resets timeline mode; leaving the trip filter hides
-it. This first stage provides manual scrubbing; automatic Play/Pause and speed
-controls will follow. It uses the existing loaded history and its query limits,
+it. Playback moves markers without redrawing full routes on each tick and does
+not make additional history requests. It uses loaded history and its query limits,
 so a vehicle reaching 50,000 points is flagged as potentially incomplete.
 
 ## Import GPX history
