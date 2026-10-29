@@ -177,8 +177,7 @@ class SpotTraceHistoryCard extends HTMLElement {
       const label=document.createElement('label');label.className='trip-vehicle';
       const checkbox=document.createElement('input');checkbox.type='checkbox';
       checkbox.checked=trip?(trip.devices==null||trip.devices.some(p=>p.feed_id===d.feed_id&&p.device===d.device)):this.selected[d.entry_id+':'+d.device]!==false;
-      const name=this.deviceSettings(d).name||d.name||d.device;
-      label.append(checkbox,document.createTextNode(`${name} (${d.device}, feed ${d.feed_id})${d.unavailable?' — unavailable':''}`));container.append(label);
+      label.append(checkbox,document.createTextNode(`${this.deviceName(d)} (${d.device}, feed ${d.feed_id})${d.unavailable?' — unavailable':''}`));container.append(label);
       return {reference,checkbox};
     });
     const toggle=()=>{for(const item of this.tripVehicleChecks)item.checkbox.disabled=all.checked};
@@ -233,12 +232,14 @@ class SpotTraceHistoryCard extends HTMLElement {
     finally{this.savingTrip=false;button.disabled=false;this.shadowRoot.querySelector('.cancel-trip-edit').disabled=false}
   }
   legend(){const el=this.shadowRoot.querySelector('.legend');el.replaceChildren();
-    this.tripDevices().forEach(d=>{const k=d.entry_id+':'+d.device, opt=this.deviceSettings(d)||{},color=opt.color||this.palette(this.devices.indexOf(d));
+    this.tripDevices().forEach(d=>{const k=d.entry_id+':'+d.device;
       const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.checked=this.selected[k];check.onchange=()=>{this.selected[k]=check.checked;this.loadTracks()};
-      const dot=document.createElement('span');dot.className='swatch';dot.style.background=color;
-      label.append(check,dot,document.createTextNode(opt.name||d.name||d.device));el.append(label)})
+      const dot=document.createElement('span');dot.className='swatch';dot.style.background=this.trackColor(d);
+      label.append(check,dot,document.createTextNode(this.deviceName(d)));el.append(label)})
   }
   deviceSettings(d){return this.settings[d.entry_id+':'+d.device] || this.settings[d.device] || this.settings[d.name] || {}}
+  deviceName(d){return this.deviceSettings(d).name||d.name||d.device}
+  trackColor(d){return this.deviceSettings(d).color||this.palette(this.devices.indexOf(d))}
   palette(i){return ['#1976d2','#e65100','#388e3c','#8e24aa','#c2185b','#00838f'][i%6]}
   status(s){this.shadowRoot.querySelector('.note').textContent=s}
   playbackPoint(points){
@@ -302,7 +303,7 @@ class SpotTraceHistoryCard extends HTMLElement {
     const positions=this.shadowRoot.querySelector('.playback-positions');positions.replaceChildren();
     if(this.playbackTime!==null)for(const track of this.tracks){
       const point=this.playbackPoint(track.points),row=document.createElement('div');
-      const name=this.deviceSettings(track.d).name||track.d.name||track.d.device;
+      const name=this.deviceName(track.d);
       row.textContent=point?`${name} — last recorded fix: ${format(point.time)}`:`${name} — no recorded fix yet`;
       positions.append(row);
     }
@@ -333,7 +334,6 @@ class SpotTraceHistoryCard extends HTMLElement {
     this.pendingFit=Boolean(bounds)&&!(this.map&&map.clientWidth&&map.clientHeight);
     if(bounds&&!this.pendingFit)this.map.fitBounds(bounds,{padding:[24,24],maxZoom:16});
   }
-  trackColor(d){return this.deviceSettings(d).color||this.palette(this.devices.indexOf(d))}
   draw(){
     if(!this.map){this.ensureMap();return}
     this.trackLayer.clearLayers();this.markerLayer.clearLayers();this.markers.clear();
@@ -356,7 +356,7 @@ class SpotTraceHistoryCard extends HTMLElement {
       let marker=this.markers.get(key);
       if(!point){if(marker){this.markerLayer.removeLayer(marker);this.markers.delete(key)}continue}
       if(marker){marker.setLatLng([point.lat,point.lon]);continue}
-      const name=this.deviceSettings(track.d).name||track.d.name||track.d.device;
+      const name=this.deviceName(track.d);
       marker=this.L.marker([point.lat,point.lon],{icon:this.vehicleIcon(track.d),title:name,alt:name,keyboard:false}).addTo(this.markerLayer);
       this.markers.set(key,marker);
     }

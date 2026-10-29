@@ -566,3 +566,23 @@ test('playback moves existing markers and shows only vehicles with an earlier fi
   card.playbackTime=null;card.drawMarkers();
   sameJSON(made.markers[0].latlng,[-38,146]);
 });
+
+test('every view names and colours a vehicle the same way: card setting, then SPOT name, then messenger ID', async () => {
+  const {card,node}=leafletCard({devices:{'a:car':{name:'Ute',color:'#123456'}}});
+  card.devices=[{entry_id:'a',device:'car',name:'Bluey'},{entry_id:'b',device:'trailer',name:'Camper'},{entry_id:'c',device:'0-123'}];
+  card.allDevices=card.devices;
+  const names=['Ute','Camper','0-123'],colours=['#123456','#e65100','#388e3c'];
+  card.legend();
+  const legend=node('.legend').children;
+  sameJSON(legend.map(label=>label.children[2].textContent),names);
+  sameJSON(legend.map(label=>label.children[1].style.background),colours);
+  card.renderTripVehicles(null);
+  sameJSON(node('.trip-vehicles').children.map(label=>label.children[1].textContent.split(' (')[0]),names);
+  card.trips=[{id:'trip',name:'Camping'}];node('.trip-select').value='trip';
+  card.tracks=card.devices.map(d=>({d,points:[{time:100,lat:-37,lon:145}]}));
+  card.playbackRange={start:0,end:200};card.playbackTime=150;card.renderPlayback();
+  sameJSON(node('.playback-positions').children.map(row=>row.textContent.split(' — ')[0]),names);
+  await card.ensureMap();
+  sameJSON([...card.markerLayer.layers].map(marker=>marker.options.title),names);
+  sameJSON([...card.trackLayer.layers].map(line=>line.options.color),colours);
+});
