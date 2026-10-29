@@ -5,3 +5,6 @@ __pycache__/
 dist/
 /.idea/
 /db/
+/.agents/skills/
+/.claude/skills/
+/skills-lock.json
