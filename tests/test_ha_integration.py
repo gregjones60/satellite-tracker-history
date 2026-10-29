@@ -86,6 +86,29 @@ async def test_bundled_card_and_domain_actions_registered_once(hass, config_dir,
     assert hass.services.has_service(DOMAIN, "import_gpx")
 
 
+async def test_bundled_leaflet_is_served_at_the_version_the_card_requests(hass, config_dir, aioclient_mock, hass_client):
+    aioclient_mock.get(FEED_URL.format("feed-a"), text=feed_xml())
+    await setup(hass, add_entry(hass, "feed-a"))
+    client = await hass_client()
+    card = await (await client.get("/spot_trace_history/spot-trace-history-card.js")).text()
+    for name, content in (("leaflet-src.esm.js", "Leaflet 1.9.4"), ("leaflet.css", ".leaflet-container")):
+        response = await client.get(f"/spot_trace_history/leaflet/{name}?v=1.9.4")
+        assert response.status == 200
+        assert content in await response.text()
+    assert "LEAFLET_VERSION='1.9.4'" in card
+    assert (await client.get("/spot_trace_history/leaflet/../manifest.json")).status == 404
+
+
+async def test_device_list_includes_each_vehicles_chosen_icon(hass, config_dir, aioclient_mock, hass_ws_client):
+    aioclient_mock.get(FEED_URL.format("feed-a"), text=feed_xml(("vehicle", "Bluey", 100, -37.0, 145.0),
+                                                                ("trailer", "Camper", 200, -38.0, 146.0)))
+    await setup(hass, add_entry(hass, "feed-a", options={"devices": {"trailer": {"icon": "mdi:caravan"}}}))
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": "spot_trace_history/devices"})
+    response = await client.receive_json()
+    assert {d["device"]: d["icon"] for d in response["result"]} == {"vehicle": None, "trailer": "mdi:caravan"}
+
+
 async def test_unload_keeps_archive_and_stops_listing_feed(hass, config_dir, aioclient_mock, hass_ws_client):
     aioclient_mock.get(FEED_URL.format("feed-a"), text=feed_xml(("vehicle", "Bluey", 100, -37.0, 145.0)))
     aioclient_mock.get(FEED_URL.format("feed-b"), text=feed_xml(("trailer", "Camper", 200, -38.0, 146.0)))
