@@ -2,7 +2,7 @@
   <img src="branding/logo.png" alt="SPOT Trace History" width="250">
 </p>
 
-# SPOT Trace History v0.5.2 — multi-feed prototype + bundled card
+# SPOT Trace History v0.5.3 — multi-feed prototype + bundled card
 
 Each SPOT XML feed is a **separate integration configuration entry**. To add another tracker, go to **Settings → Devices & services → Add integration → SPOT Trace History**, and enter that device's own feed ID (and password if needed). Repeat for each new device. A feed is not assumed to contain all devices.
 
@@ -14,7 +14,7 @@ Copy `custom_components/spot_trace_history` to `/config/custom_components/spot_t
 
 For HACS, publish this repository with `custom_components/spot_trace_history` at its root, add the GitHub repository URL to HACS as a **custom integration repository**, install, and restart Home Assistant. HACS installation and update do not automatically create a GitHub repository.
 
-The card asset is available at `/spot_trace_history/spot-trace-history-card.js?v=0.5.2` once Home Assistant has restarted. The version is read from the installed integration manifest. Home Assistant's frontend loads the bundled script automatically. If you previously registered `/local/spot-trace-history-card.js` manually, remove that old dashboard resource to avoid loading two card versions.
+The card asset is available at `/spot_trace_history/spot-trace-history-card.js?v=0.5.3` once Home Assistant has restarted. The version is read from the installed integration manifest. Home Assistant's frontend loads the bundled script automatically. If you previously registered `/local/spot-trace-history-card.js` manually, remove that old dashboard resource to avoid loading two card versions.
 
 ## Example card
 
