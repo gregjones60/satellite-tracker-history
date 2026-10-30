@@ -1,6 +1,6 @@
 from unittest.mock import Mock
 import pytest
-from custom_components.spot_trace_history.api import SpotAPI, SpotAPIError
+from custom_components.satellite_tracker_history.api import SpotAPI, SpotAPIError
 
 
 class Response:
@@ -23,7 +23,7 @@ class Response:
 
 @pytest.mark.asyncio
 async def test_xml_paging_and_validation(monkeypatch):
-    import custom_components.spot_trace_history.api as module
+    import custom_components.satellite_tracker_history.api as module
     captured = {}
     xml = """<response><feedMessageResponse><messages>
     <message><id>1</id><messengerId>device1</messengerId><messengerName>Bluey</messengerName>
@@ -47,7 +47,7 @@ async def test_xml_paging_and_validation(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_api_error_response(monkeypatch):
-    import custom_components.spot_trace_history.api as module
+    import custom_components.satellite_tracker_history.api as module
     class Session:
         def get(self, *_args, **_kwargs):
             return Response("<response><errors><error>Bad feed</error></errors></response>")
@@ -58,7 +58,7 @@ async def test_api_error_response(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_no_recent_messages_is_an_empty_page(monkeypatch):
-    import custom_components.spot_trace_history.api as module
+    import custom_components.satellite_tracker_history.api as module
     class Session:
         def get(self, *_args, **_kwargs):
             return Response("<response><errors><error><code>E-0195</code>"
@@ -69,7 +69,7 @@ async def test_no_recent_messages_is_an_empty_page(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_http_error_message_excludes_password(monkeypatch):
-    import custom_components.spot_trace_history.api as module
+    import custom_components.satellite_tracker_history.api as module
     class Session:
         def get(self, *_args, **_kwargs):
             return Response("", status=500)
@@ -81,7 +81,7 @@ async def test_http_error_message_excludes_password(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_client_error_with_url_is_sanitized(monkeypatch):
-    import custom_components.spot_trace_history.api as module
+    import custom_components.satellite_tracker_history.api as module
     class Session:
         def get(self, url, params=None, **_kwargs):
             # aiohttp client errors include the full request URL, query string and all.

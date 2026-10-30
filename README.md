@@ -1,10 +1,10 @@
 <p>
-  <img src="branding/logo.png" alt="SPOT Trace History" width="250">
+  <img src="branding/logo.png" alt="Satellite Tracker History">
 </p>
 
-# SPOT Trace History v0.6.1 — SPOT and Garmin trackers + bundled card
+# Satellite Tracker History v0.7.0 — SPOT and Garmin trackers + bundled card
 
-Each **vehicle** is a separate integration configuration entry: one tracker, which is either a messenger in a **SPOT shared feed** or a device in a **Garmin inReach MapShare**. To add a vehicle, go to **Settings → Devices & services → Add integration → SPOT Trace History**, choose the service, enter the feed (and password if needed), then choose the vehicle's device. The list shows devices the feed has reported recently or the archive holds; if the feed has been quiet, type the device's ID (the SPOT messenger ID, or the Garmin IMEI). Add the same feed again for each other device on it. Vehicles that share a feed are polled together, with one request per feed.
+Each **vehicle** is a separate integration configuration entry: one tracker, which is either a messenger in a **SPOT shared feed** or a device in a **Garmin inReach MapShare**. To add a vehicle, go to **Settings → Devices & services → Add integration → Satellite Tracker History**, choose the service, enter the feed (and password if needed), then choose the vehicle's device. The list shows devices the feed has reported recently or the archive holds; if the feed has been quiet, type the device's ID (the SPOT messenger ID, or the Garmin IMEI). Add the same feed again for each other device on it. Vehicles that share a feed are polled together, with one request per feed.
 
 ### Garmin inReach MapShare
 
@@ -36,6 +36,37 @@ archived history.
 
 The custom map card automatically shows **all** configured vehicles together. Do **not** set `entry_id` on the card unless you intentionally want to show just one vehicle. Each vehicle can be removed independently through Home Assistant's integrations page. The SQLite archive is retained on removal.
 
+### Renamed from SPOT Trace History
+
+Up to v0.6.1 this integration was called **SPOT Trace History**, with the domain
+`spot_trace_history`. From v0.7.0 it is **Satellite Tracker History**
+(`satellite_tracker_history`). To upgrade:
+
+1. Back up Home Assistant (see [Backups](#backups)).
+2. Install Satellite Tracker History. If HACS doesn't offer it as an update, add
+   `https://github.com/gregjones60/satellite-tracker-history` as a custom
+   integration repository.
+3. Remove SPOT Trace History: in HACS, remove it, or delete the folder
+   `/config/custom_components/spot_trace_history`. Don't delete its integration
+   entries yourself; deleting them would remove the trackers.
+4. Restart Home Assistant.
+
+On that first start, every old vehicle is taken over: it gets a new entry with the
+same settings, and its tracker keeps its entity ID, device, area and labels. The
+archive `spot_trace_history.sqlite` is renamed `satellite_tracker_history.sqlite`
+(unless that file already exists), so history and trips carry over. Old feed
+entries from before v0.6.0 are split into vehicles on the way. If the old
+integration is still installed, nothing is moved and a repair asks you to remove
+it.
+
+Also update:
+
+- Automations or scripts that call `spot_trace_history.import_gpx` or
+  `spot_trace_history.import_sqlite`: use `satellite_tracker_history.import_gpx` and
+  `satellite_tracker_history.import_sqlite`.
+- Dashboard cards keep working with `type: custom:spot-trace-history-card`, but new
+  cards use `type: custom:satellite-tracker-history-card`.
+
 ### Upgrading from feed entries
 
 Up to v0.5.17, each integration entry was a whole feed and held all its
@@ -56,15 +87,31 @@ imports. Delete any you don't want; their history stays in the archive.
 
 ## Installation
 
-Copy `custom_components/spot_trace_history` to `/config/custom_components/spot_trace_history` and restart Home Assistant. Add one integration entry per vehicle. The integration automatically serves and registers its bundled card JavaScript; **no `/config/www` folder or manual dashboard resource is needed**. Refresh the browser cache after updating.
+Copy `custom_components/satellite_tracker_history` to `/config/custom_components/satellite_tracker_history` and restart Home Assistant. Add one integration entry per vehicle. The integration automatically serves and registers its bundled card JavaScript; **no `/config/www` folder or manual dashboard resource is needed**. Refresh the browser cache after updating.
 
-For HACS, publish this repository with `custom_components/spot_trace_history` at its root, add the GitHub repository URL to HACS as a **custom integration repository**, install, and restart Home Assistant. HACS installation and update do not automatically create a GitHub repository.
+For HACS, publish this repository with `custom_components/satellite_tracker_history` at its root, add the GitHub repository URL to HACS as a **custom integration repository**, install, and restart Home Assistant. HACS installation and update do not automatically create a GitHub repository.
 
-The card asset is available at `/spot_trace_history/spot-trace-history-card.js?v=0.6.1` once Home Assistant has restarted. The version is read from the installed integration manifest. Home Assistant's frontend loads the bundled script automatically. If you previously registered `/local/spot-trace-history-card.js` manually, remove that old dashboard resource to avoid loading two card versions.
+The card asset is available at `/satellite_tracker_history/satellite-tracker-history-card.js?v=0.7.0` once Home Assistant has restarted. The version is read from the installed integration manifest. Home Assistant's frontend loads the bundled script automatically. If you previously registered `/local/spot-trace-history-card.js` manually, remove that old dashboard resource to avoid loading two card versions.
+
+## Backups
+
+Before an upgrade that changes entries (v0.6.0 and v0.7.0 did), take a full backup
+under **Settings → System → Backups → Create backup**, and download it. It holds:
+
+- the integration, `/config/custom_components/satellite_tracker_history/`
+- the archive, `/config/satellite_tracker_history.sqlite` (named
+  `spot_trace_history.sqlite` before v0.7.0)
+- `/config/.storage/core.config_entries`, `core.device_registry` and
+  `core.entity_registry`, which hold the vehicles and their trackers
+
+To copy the archive by hand while Home Assistant runs, use
+`sqlite3 /config/satellite_tracker_history.sqlite ".backup /config/archive-copy.sqlite"`.
+To roll back an upgrade, restore the integration folder and those `.storage`
+files together, with Home Assistant stopped.
 
 ## Vehicle settings
 
-Open **Settings → Devices & services → SPOT Trace History**, choose the vehicle
+Open **Settings → Devices & services → Satellite Tracker History**, choose the vehicle
 and click **Configure** to see its feed ID, messenger ID, stored position count,
 first/latest archived position times (UTC), and latest coordinates. These details
 come from the local archive, including GPX imports. They do not guarantee a
@@ -102,7 +149,7 @@ This UI still needs validation in a live Home Assistant instance.
 
 ### Duplicate card script errors
 
-If browser logs report that `spot-trace-history-card` has already been defined,
+If browser logs report that `satellite-tracker-history-card` or `spot-trace-history-card` has already been defined,
 check your dashboard resources for an old manual `/local/spot-trace-history-card.js`
 entry and remove it. The integration automatically loads its bundled script.
 Reload the browser after removing the old resource. The bundled card tolerates
@@ -113,7 +160,7 @@ manually copied script may still throw this error until its resource is removed.
 ## Example card
 
 ```yaml
-type: custom:spot-trace-history-card
+type: custom:satellite-tracker-history-card
 days: 30
 devices:
   Bluey:
@@ -170,7 +217,7 @@ can narrow the display further. Changing either date returns the selector to **C
 **Refresh** to apply those dates and reload the saved-trip list.
 
 Trips are shared across this integration's feeds and cards, and persist in
-`spot_trace_history.sqlite` across restarts. They save inclusive calendar dates,
+`satellite_tracker_history.sqlite` across restarts. They save inclusive calendar dates,
 interpreted in the browser's timezone like the existing date controls. Names
 must be unique and contain 1–100 characters. Trip periods are capped at 366
 calendar days; the existing track query limit of 366 elapsed days and 50,000
@@ -250,7 +297,7 @@ range; importing does not change the map's default recent-history filter.
 Put exports under `/config/spot_exports/` and run **Developer Tools → Actions**:
 
 ```yaml
-action: spot_trace_history.import_gpx
+action: satellite_tracker_history.import_gpx
 data:
   filename: spot_exports/vehicle.gpx
   feed_id: YOUR_VEHICLE_FEED_ID
@@ -266,7 +313,7 @@ You can import the SPOT web app's **download all** GPX export in one action.
 Omit the top-level `feed_id` and `entry_id` to route tracks individually:
 
 ```yaml
-action: spot_trace_history.import_gpx
+action: satellite_tracker_history.import_gpx
 data:
   filename: spot_exports/all_devices.gpx
   device_mapping:
@@ -279,7 +326,7 @@ If the same messenger ID is configured on two feeds, add an explicit GPX
 track-to-feed mapping:
 
 ```yaml
-action: spot_trace_history.import_gpx
+action: satellite_tracker_history.import_gpx
 data:
   filename: spot_exports/all_devices.gpx
   device_mapping:
@@ -330,10 +377,10 @@ archived names.
 
 Copy a complete SPOT iOS SQLite export to `/config/spot_exports/spot_app.db`.
 After updating the integration and restarting Home Assistant, run
-**Developer Tools → Actions → SPOT Trace History: Import SPOT iOS database**:
+**Developer Tools → Actions → Satellite Tracker History: Import SPOT iOS database**:
 
 ```yaml
-action: spot_trace_history.import_sqlite
+action: satellite_tracker_history.import_sqlite
 data:
   filename: spot_exports/spot_app.db
   device_mapping:
@@ -376,7 +423,7 @@ still needs validation.
 
 ## Limitations
 
-Experimental, not live-tested. Latest 50 XML messages polled per feed, shared by the vehicles on it; complete XML pagination is not implemented. The historical website export must be imported manually. Card queries are limited to 366 days and 50,000 points per device. Back up `/config/spot_trace_history.sqlite`. All map tiles require internet connectivity and are served by OpenStreetMap.
+Experimental, not live-tested. Latest 50 XML messages polled per feed, shared by the vehicles on it; complete XML pagination is not implemented. The historical website export must be imported manually. Card queries are limited to 366 days and 50,000 points per device. Back up `/config/satellite_tracker_history.sqlite`. All map tiles require internet connectivity and are served by OpenStreetMap.
 
 ## Release notes 0.5.0
 
@@ -392,7 +439,7 @@ Experimental, not live-tested. Latest 50 XML messages polled per feed, shared by
 The card accepts `tile_url` and `tile_attribution` options. For example, with a tile provider you have permission to use:
 
 ```yaml
-type: custom:spot-trace-history-card
+type: custom:satellite-tracker-history-card
 tile_url: "https://your-authorized-tile-server.example/{z}/{x}/{y}.png"
 tile_attribution: "© OpenStreetMap contributors, tiles © Your Provider"
 ```

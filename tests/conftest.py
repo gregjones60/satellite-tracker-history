@@ -31,9 +31,9 @@ else:
     package = types.ModuleType("custom_components")
     package.__path__ = [str(ROOT / "custom_components")]
     sys.modules.setdefault("custom_components", package)
-    integration = types.ModuleType("custom_components.spot_trace_history")
-    integration.__path__ = [str(ROOT / "custom_components" / "spot_trace_history")]
-    sys.modules["custom_components.spot_trace_history"] = integration
+    integration = types.ModuleType("custom_components.satellite_tracker_history")
+    integration.__path__ = [str(ROOT / "custom_components" / "satellite_tracker_history")]
+    sys.modules["custom_components.satellite_tracker_history"] = integration
 
     # Only the API module needs this Home Assistant helper.
     ha = types.ModuleType("homeassistant")

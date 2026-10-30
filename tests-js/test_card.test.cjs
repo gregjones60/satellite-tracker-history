@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const src = fs.readFileSync(path.join(__dirname, '../custom_components/spot_trace_history/www/spot-trace-history-card.js'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '../custom_components/satellite_tracker_history/www/satellite-tracker-history-card.js'), 'utf8');
 
 test('tile requests use a safe referrer policy and configurable provider', () => {
   assert.match(src, /strict-origin-when-cross-origin/);
@@ -14,8 +14,8 @@ test('multi-device configuration and route display remain available', () => {
   assert.match(src, /entry_id/);
 });
 
-function cardContext(existing) {
-  const registered = new Map(existing ? [['spot-trace-history-card', existing]] : []);
+function cardContext(existing, name='satellite-tracker-history-card') {
+  const registered = new Map(existing ? [[name, existing]] : []);
   let definitions = 0;
   const context = vm.createContext({
     HTMLElement: class {}, window: {}, document:{hidden:false},
@@ -31,26 +31,51 @@ function cardContext(existing) {
   return {context, registered, definitions: ()=>definitions};
 }
 
-test('loading the card twice in the same page registers it only once', () => {
+test('loading the card twice in the same page registers each name only once', () => {
   const c=cardContext();
   vm.runInContext(src,c.context);
-  const first=c.registered.get('spot-trace-history-card');
+  const first=c.registered.get('satellite-tracker-history-card');
   vm.runInContext(src,c.context);
-  assert.equal(c.definitions(),1);
-  assert.equal(c.registered.get('spot-trace-history-card'),first);
+  assert.equal(c.definitions(),2);
+  assert.equal(c.registered.get('satellite-tracker-history-card'),first);
+  // The name used before the integration was renamed is a subclass, so both can be defined.
+  assert.ok(c.registered.get('spot-trace-history-card').prototype instanceof first);
   assert.equal(c.context.window.customCards.length,1);
+});
+
+test('dashboards keep working with the card type used before the rename', () => {
+  const c=cardContext();
+  c.context.ResizeObserver=class {observe() {} disconnect() {}};
+  vm.runInContext(src,c.context);
+  for (const name of ['satellite-tracker-history-card','spot-trace-history-card']) {
+    const card=new (c.registered.get(name))();
+    card.attachShadow=()=>{card.shadowRoot={querySelector:()=>({addEventListener(){},style:{}})}};
+    card.setConfig({type:`custom:${name}`});
+    assert.equal(card.cfg.type,`custom:${name}`);
+  }
+  const card=new (c.registered.get('satellite-tracker-history-card'))();
+  assert.throws(()=>card.setConfig({type:'custom:other-card'}),/Invalid card type/);
 });
 
 test('an existing card definition and picker entry are preserved', () => {
   const existing=class {};
   const c=cardContext(existing);
-  const pickerEntry={type:'spot-trace-history-card',name:'Existing card'};
+  const pickerEntry={type:'satellite-tracker-history-card',name:'Existing card'};
   c.context.window.customCards=[pickerEntry];
   vm.runInContext(src,c.context);
-  assert.equal(c.definitions(),0);
-  assert.equal(c.registered.get('spot-trace-history-card'),existing);
+  // Only the old name, which was not defined yet, is added.
+  assert.equal(c.definitions(),1);
+  assert.equal(c.registered.get('satellite-tracker-history-card'),existing);
   assert.equal(c.context.window.customCards.length,1);
   assert.equal(c.context.window.customCards[0],pickerEntry);
+});
+
+test('the old integration\'s card, if still loaded, keeps its element name', () => {
+  const old=class {};
+  const c=cardContext(old,'spot-trace-history-card');
+  vm.runInContext(src,c.context);
+  assert.equal(c.registered.get('spot-trace-history-card'),old);
+  assert.equal(c.definitions(),1);
 });
 
 function tripCard() {
@@ -61,7 +86,7 @@ function tripCard() {
   c.context.cancelAnimationFrame=id=>frames.delete(id);
   c.context.document={hidden:false,addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name),createElement:()=>({style:{},children:[],append(...children){this.children.push(...children)}}),createTextNode:text=>({textContent:text})};
   vm.runInContext(src,c.context);
-  const card=new (c.registered.get('spot-trace-history-card'))();
+  const card=new (c.registered.get('satellite-tracker-history-card'))();
   const nodes=new Map();let focused=null;
   const node=selector=>{
     if(!nodes.has(selector)) nodes.set(selector,{
@@ -73,7 +98,7 @@ function tripCard() {
     return nodes.get(selector);
   };
   card.attachShadow=()=>{card.shadowRoot={querySelector:node}};
-  card.setConfig({type:'custom:spot-trace-history-card'});
+  card.setConfig({type:'custom:satellite-tracker-history-card'});
   card.fit=()=>{};card.draw=()=>{};
   card.allDevices=[{entry_id:'feed-a',feed_id:'feed-a-id',device:'vehicle',name:'Vehicle'},{entry_id:'feed-b',feed_id:'feed-b-id',device:'trailer',name:'Trailer'}];
   return {card,node,focused:()=>focused,window:c.context.window,frames,document:c.context.document,listeners,advance:time=>{for(const [id,fn] of [...frames]){frames.delete(id);fn(time)}}};
@@ -83,7 +108,7 @@ test('saving dates persists a named trip and selecting it filters device queries
   const {card,node}=tripCard();
   const trip={id:'trip-1',name:'Camping',start_date:'2026-01-01',end_date:'2026-01-03'};
   const calls=[];
-  card._hass={callWS:async msg=>{calls.push(msg);return msg.type==='spot_trace_history/create_trip' ? trip : []}};
+  card._hass={callWS:async msg=>{calls.push(msg);return msg.type==='satellite_tracker_history/create_trip' ? trip : []}};
   node('.from').value=trip.start_date;node('.to').value=trip.end_date;
   card.openTripDialog();
   assert.equal(node('.trip-dialog').open,true);
@@ -98,7 +123,7 @@ test('saving dates persists a named trip and selecting it filters device queries
   card.selected={'feed-a:vehicle':true,'feed-b:trailer':false};
   node('.from').value='2026-02-01';node('.to').value='2026-02-02';
   await card.selectTrip();
-  const trackQueries=calls.filter(msg=>msg.type==='spot_trace_history/track');
+  const trackQueries=calls.filter(msg=>msg.type==='satellite_tracker_history/track');
   assert.equal(trackQueries.length,1);
   assert.equal(trackQueries[0].device,'vehicle');
   assert.equal(trackQueries[0].start,Date.parse('2026-01-01T00:00:00')/1000);
@@ -124,7 +149,7 @@ test('trip list loads saved dates and treats names as plain text', async () => {
   const {card,node}=tripCard();
   const trip={id:'saved',name:'<img onerror=bad()>',start_date:'2025-01-01',end_date:'2025-01-02'};
   card._hass={callWS:async msg=>{
-    assert.equal(msg.type,'spot_trace_history/trips');return [trip];
+    assert.equal(msg.type,'satellite_tracker_history/trips');return [trip];
   }};
   await card.loadTrips();
   assert.equal(node('.trip-select').children[0].textContent,'Custom dates');
@@ -143,7 +168,7 @@ test('dialog saves changed dates with the original name without creating another
   node('.trip-to').value='2026-01-03';
   assert.equal(node('.trip-select').value,'1');
   card._hass={callWS:async msg=>{
-    assert.equal(msg.type,'spot_trace_history/update_trip');
+    assert.equal(msg.type,'satellite_tracker_history/update_trip');
     assert.equal(msg.trip_id,'1');
     assert.equal(msg.name,'Camping');
     return {...trip,name:msg.name,end_date:msg.end_date};
@@ -193,7 +218,7 @@ test('deleting requires confirmation and retains displayed dates as custom dates
   assert.equal(card.trips.length,1);
   window.confirm=message=>{assert.match(message,/GPS records will be kept/);return true};
   await card.deleteTrip();
-  assert.equal(calls[0].type,'spot_trace_history/delete_trip');
+  assert.equal(calls[0].type,'satellite_tracker_history/delete_trip');
   assert.equal(calls[0].trip_id,'1');
   assert.equal(card.trips.length,0);
   assert.equal(node('.trip-select').value,'');
@@ -213,7 +238,7 @@ test('trip dialog saves vehicle participants and filtering excludes the trailer'
   const queries=[];
   card._hass={callWS:async msg=>{
     queries.push(msg);
-    if(msg.type==='spot_trace_history/create_trip')return {...msg,id:'weekend'};
+    if(msg.type==='satellite_tracker_history/create_trip')return {...msg,id:'weekend'};
     return [];
   }};
   await card.saveTrip();
@@ -221,8 +246,8 @@ test('trip dialog saves vehicle participants and filtering excludes the trailer'
   assert.equal(participants.length,1);
   assert.equal(participants[0].feed_id,'feed-a-id');
   assert.equal(participants[0].device,'vehicle');
-  assert.equal(queries.filter(msg=>msg.type==='spot_trace_history/track').length,1);
-  assert.equal(queries.find(msg=>msg.type==='spot_trace_history/track').device,'vehicle');
+  assert.equal(queries.filter(msg=>msg.type==='satellite_tracker_history/track').length,1);
+  assert.equal(queries.find(msg=>msg.type==='satellite_tracker_history/track').device,'vehicle');
   assert.equal(card.tripDevices().length,1);
   node('.trip-select').value='';await card.selectTrip();
   assert.equal(card.tripDevices().length,2);
@@ -454,7 +479,7 @@ function leafletCard(config={}) {
   const element=tag=>({tag,style:{},attrs:{},children:[],setAttribute(name,value){this.attrs[name]=value},append(...children){this.children.push(...children)}});
   c.context.document={hidden:false,addEventListener(){},removeEventListener(){},createElement:element,createTextNode:text=>({textContent:text})};
   vm.runInContext(src,c.context);
-  const Card=c.registered.get('spot-trace-history-card');
+  const Card=c.registered.get('satellite-tracker-history-card');
   const leaflet=fakeLeaflet();let loads=0;
   Card.loadLeaflet=async()=>{loads++;return leaflet.L};
   const card=new Card();
@@ -465,7 +490,7 @@ function leafletCard(config={}) {
     return nodes.get(selector);
   };
   card.attachShadow=()=>{card.shadowRoot={querySelector:node}};
-  card.setConfig({type:'custom:spot-trace-history-card',...config});
+  card.setConfig({type:'custom:satellite-tracker-history-card',...config});
   card.devices=[{entry_id:'a',device:'car',name:'Car',icon:'mdi:van-utility'},{entry_id:'b',device:'trailer',name:'Trailer'}];
   return {card,node,...leaflet,loads:()=>loads,resize:()=>resize.forEach(fn=>fn())};
 }

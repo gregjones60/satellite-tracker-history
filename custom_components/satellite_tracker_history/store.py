@@ -1,4 +1,5 @@
 """Persistent GPS archive."""
+import os
 import sqlite3
 import json
 from contextlib import closing, contextmanager
@@ -7,7 +8,23 @@ import re
 from uuid import uuid4
 from pathlib import Path
 
-from .const import ARCHIVE_FILENAME, DOMAIN
+from .const import ARCHIVE_FILENAME, DOMAIN, LEGACY_ARCHIVE_FILENAME
+
+
+def move_legacy_archive(config_dir):
+    """Rename the archive kept under the integration's old name, unless the new one already exists.
+
+    Returns whether it moved. SQLite's side files move with it, so no committed data is left behind.
+    """
+    old, new = Path(config_dir) / LEGACY_ARCHIVE_FILENAME, Path(config_dir) / ARCHIVE_FILENAME
+    if new.exists() or not old.exists():
+        return False
+    for suffix in ('-wal', '-shm', '-journal'):
+        side = old.with_name(old.name + suffix)
+        if side.exists():
+            os.replace(side, new.with_name(new.name + suffix))
+    os.replace(old, new)
+    return True
 
 
 def async_get_store(hass):

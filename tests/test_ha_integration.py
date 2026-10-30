@@ -12,7 +12,7 @@ from pytest_homeassistant_custom_component.components.diagnostics import (  # no
     get_diagnostics_for_config_entry,
 )
 
-from custom_components.spot_trace_history.const import DOMAIN  # noqa: E402
+from custom_components.satellite_tracker_history.const import DOMAIN  # noqa: E402
 
 pytestmark = pytest.mark.ha
 
@@ -78,7 +78,7 @@ async def test_entry_creates_tracker_device_and_archive(hass, config_dir, aiocli
     assert {d["device"] for d in hass.data[DOMAIN].list_devices("feed-a")} == {"vehicle", "trailer"}
     device = dr.async_get(hass).async_get_device_by_identifier((DOMAIN, "feed-a_vehicle"), entry.entry_id)
     assert device.manufacturer == "SPOT"
-    assert (config_dir / "spot_trace_history.sqlite").is_file()
+    assert (config_dir / "satellite_tracker_history.sqlite").is_file()
 
 
 async def test_vehicles_on_one_feed_share_each_poll(hass, config_dir, aioclient_mock):
@@ -90,7 +90,7 @@ async def test_vehicles_on_one_feed_share_each_poll(hass, config_dir, aioclient_
     assert aioclient_mock.call_count == 1
     assert hass.states.get(tracker_id(hass, "feed-a", "trailer")).attributes["latitude"] == -38.0
     # Once the shared fetch is stale, the next refresh fetches again.
-    from custom_components.spot_trace_history import coordinator as module
+    from custom_components.satellite_tracker_history import coordinator as module
     vehicle.runtime_data.poller._fetched -= module.FRESH_SECONDS
     await vehicle.runtime_data.async_refresh()
     await trailer.runtime_data.async_refresh()
@@ -116,7 +116,7 @@ async def test_bundled_card_and_domain_actions_registered_once(hass, config_dir,
     assert hass.services.has_service(DOMAIN, "import_gpx")
     assert hass.services.has_service(DOMAIN, "import_sqlite")
     from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL
-    urls = [url for url in hass.data[DATA_EXTRA_MODULE_URL].urls if "spot-trace-history-card.js" in url]
+    urls = [url for url in hass.data[DATA_EXTRA_MODULE_URL].urls if "satellite-tracker-history-card.js" in url]
     assert len(urls) == 1
 
     # Reloading one vehicle must not re-register domain-wide actions or commands.
@@ -130,13 +130,13 @@ async def test_bundled_leaflet_is_served_at_the_version_the_card_requests(hass, 
     aioclient_mock.get(FEED_URL.format("feed-a"), text=feed_xml())
     await setup(hass, add_entry(hass, "feed-a"))
     client = await hass_client()
-    card = await (await client.get("/spot_trace_history/spot-trace-history-card.js")).text()
+    card = await (await client.get("/satellite_tracker_history/satellite-tracker-history-card.js")).text()
     for name, content in (("leaflet-src.esm.js", "Leaflet 1.9.4"), ("leaflet.css", ".leaflet-container")):
-        response = await client.get(f"/spot_trace_history/leaflet/{name}?v=1.9.4")
+        response = await client.get(f"/satellite_tracker_history/leaflet/{name}?v=1.9.4")
         assert response.status == 200
         assert content in await response.text()
     assert "LEAFLET_VERSION='1.9.4'" in card
-    assert (await client.get("/spot_trace_history/leaflet/../manifest.json")).status == 404
+    assert (await client.get("/satellite_tracker_history/leaflet/../manifest.json")).status == 404
 
 
 async def test_device_list_has_each_vehicle_with_its_name_and_icon(hass, config_dir, aioclient_mock, hass_ws_client):
@@ -148,7 +148,7 @@ async def test_device_list_has_each_vehicle_with_its_name_and_icon(hass, config_
     await hass.config_entries.async_setup(hass.config_entries.async_entries(DOMAIN)[1].entry_id)
     await hass.async_block_till_done()
     client = await hass_ws_client(hass)
-    await client.send_json_auto_id({"type": "spot_trace_history/devices"})
+    await client.send_json_auto_id({"type": "satellite_tracker_history/devices"})
     response = await client.receive_json()
     # The spare messenger is archived but is not a configured vehicle.
     assert {d["device"]: (d["name"], d["icon"]) for d in response["result"]} == {
@@ -163,7 +163,7 @@ async def test_unload_keeps_archive_and_stops_listing_vehicle(hass, config_dir, 
     assert second.state is ConfigEntryState.LOADED
     client = await hass_ws_client(hass)
 
-    await client.send_json_auto_id({"type": "spot_trace_history/devices"})
+    await client.send_json_auto_id({"type": "satellite_tracker_history/devices"})
     response = await client.receive_json()
     assert {(d["feed_id"], d["device"]) for d in response["result"]} == {
         ("feed-a", "vehicle"), ("feed-b", "trailer"),
@@ -172,11 +172,11 @@ async def test_unload_keeps_archive_and_stops_listing_vehicle(hass, config_dir, 
     assert await hass.config_entries.async_unload(second.entry_id)
     await hass.async_block_till_done()
     assert second.state is ConfigEntryState.NOT_LOADED
-    await client.send_json_auto_id({"type": "spot_trace_history/devices"})
+    await client.send_json_auto_id({"type": "satellite_tracker_history/devices"})
     response = await client.receive_json()
     assert [d["feed_id"] for d in response["result"]] == ["feed-a"]
 
-    await client.send_json_auto_id({"type": "spot_trace_history/track", "entry_id": second.entry_id,
+    await client.send_json_auto_id({"type": "satellite_tracker_history/track", "entry_id": second.entry_id,
                                     "device": "trailer", "start": 0, "end": 1000})
     response = await client.receive_json()
     assert response["error"]["code"] == "not_found"
@@ -191,12 +191,12 @@ async def test_track_command_returns_only_the_vehicles_positions(hass, config_di
     entry = add_entry(hass, "feed-a")
     await setup(hass, entry)
     client = await hass_ws_client(hass)
-    await client.send_json_auto_id({"type": "spot_trace_history/track", "entry_id": entry.entry_id,
+    await client.send_json_auto_id({"type": "satellite_tracker_history/track", "entry_id": entry.entry_id,
                                     "device": "vehicle", "start": 0, "end": 1000})
     response = await client.receive_json()
     assert [p["time"] for p in response["result"]] == [100, 200]
     # Another messenger in the same feed is not this vehicle's history.
-    await client.send_json_auto_id({"type": "spot_trace_history/track", "entry_id": entry.entry_id,
+    await client.send_json_auto_id({"type": "satellite_tracker_history/track", "entry_id": entry.entry_id,
                                     "device": "trailer", "start": 0, "end": 1000})
     response = await client.receive_json()
     assert response["error"]["code"] == "not_found"
@@ -403,7 +403,7 @@ async def test_tracker_is_named_by_its_device(hass, config_dir, aioclient_mock):
 
 
 async def test_only_leftover_devices_can_be_removed(hass, config_dir, aioclient_mock):
-    from custom_components.spot_trace_history import async_remove_config_entry_device
+    from custom_components.satellite_tracker_history import async_remove_config_entry_device
     aioclient_mock.get(FEED_URL.format("feed-a"), text=feed_xml(("vehicle", "Bluey", 100, -37.0, 145.0)))
     entry = add_entry(hass, "feed-a")
     await setup(hass, entry)
@@ -419,7 +419,7 @@ async def test_feed_entry_splits_into_vehicles_keeping_identity_settings_and_his
         hass, config_dir, aioclient_mock):
     aioclient_mock.get(FEED_URL.format("feed-a"), text=feed_xml(("vehicle", "Bluey", 300, -37.0, 145.0),
                                                                 ("trailer", "Camper", 300, -38.0, 146.0)))
-    from custom_components.spot_trace_history.store import async_get_store
+    from custom_components.satellite_tracker_history.store import async_get_store
     store = async_get_store(hass)
     store.insert("feed-a", [
         {"id": f"old-{device}", "device": device, "name": name, "time": 100, "lat": -36.0, "lon": 144.0, "type": "TRACK"}
@@ -471,7 +471,7 @@ async def test_feed_entry_splits_into_vehicles_keeping_identity_settings_and_his
 async def test_switched_off_messenger_without_a_tracker_gets_a_disabled_one(hass, config_dir, aioclient_mock):
     aioclient_mock.get(FEED_URL.format("feed-a"), text=feed_xml(("vehicle", "Bluey", 100, -37.0, 145.0),
                                                                 ("trailer", "Camper", 100, -38.0, 146.0)))
-    from custom_components.spot_trace_history.store import async_get_store
+    from custom_components.satellite_tracker_history.store import async_get_store
     async_get_store(hass).insert("feed-a", [{"id": f"old-{d}", "device": d, "name": d, "time": 50, "lat": -36.0,
                                              "lon": 144.0, "type": "TRACK"} for d in ("vehicle", "trailer")])
     entry = feed_entry(hass, "feed-a", options={"devices": {"vehicle": {"enabled": False}}})
@@ -537,7 +537,7 @@ async def test_form_descriptions_use_exactly_the_placeholders_the_flows_supply(h
     import re
     from pathlib import Path
     strings = json.loads((Path(__file__).resolve().parents[1] /
-                          "custom_components/spot_trace_history/translations/en.json").read_text())
+                          "custom_components/satellite_tracker_history/translations/en.json").read_text())
     aioclient_mock.get(FEED_URL.format("feed-a"), text=feed_xml(("vehicle", "Bluey", 100, -37.0, 145.0)))
     entry = add_entry(hass, "feed-a")
     await setup(hass, entry)
@@ -552,7 +552,7 @@ async def test_form_descriptions_use_exactly_the_placeholders_the_flows_supply(h
 
 @pytest.mark.parametrize("timestamp", [None, 10**100])
 def test_unavailable_or_unrepresentable_time_has_a_display_fallback(timestamp):
-    from custom_components.spot_trace_history.config_flow import SpotOptionsFlow
+    from custom_components.satellite_tracker_history.config_flow import SpotOptionsFlow
     assert SpotOptionsFlow._position_time(timestamp) == "—"
 
 
@@ -650,3 +650,94 @@ async def test_garmin_diagnostics_redact_the_mapshare_and_imei(hass, config_dir,
         assert secret not in str(result), secret
     assert result["entry"]["data"]["provider"] == "garmin"
     assert result["coordinator"]["last_exception"] == "Garmin MapShare request failed with HTTP 500"
+
+
+LEGACY = "spot_trace_history"
+
+
+def legacy_registry(hass, entry, feed, device, area=None, object_id=None):
+    """A tracker as the old integration registered it: its own platform, device and identifiers."""
+    devices, entities = dr.async_get(hass), er.async_get(hass)
+    made = devices.async_get_or_create(config_entry_id=entry.entry_id, identifiers={(LEGACY, f"{feed}_{device}")})
+    if area:
+        devices.async_update_device(made.id, area_id=area)
+    return entities.async_get_or_create("device_tracker", LEGACY, f"{feed}_{device}", config_entry=entry,
+                                        device_id=made.id, suggested_object_id=object_id or device)
+
+
+async def test_old_vehicles_are_taken_over_with_their_entities_devices_and_archive(hass, config_dir, aioclient_mock):
+    aioclient_mock.get(FEED_URL.format("feed-a"), text=feed_xml(("vehicle", "Bluey", 300, -37.0, 145.0)))
+    from custom_components.satellite_tracker_history.store import Store
+    old_archive = config_dir / "spot_trace_history.sqlite"
+    Store(old_archive).insert("feed-a", [{"id": "old", "device": "vehicle", "name": "Bluey", "time": 100,
+                                          "lat": -36.0, "lon": 144.0, "type": "TRACK"}])
+    old = MockConfigEntry(domain=LEGACY, version=2, unique_id="spot:feed-a:vehicle", title="Ute",
+                          data={"feed_id": "feed-a", "password": "pw", "device": "vehicle"},
+                          options={"name": "Ute", "icon": "mdi:car"})
+    old.add_to_hass(hass)
+    tracker = legacy_registry(hass, old, "feed-a", "vehicle", area="garage", object_id="my_ute")
+    aioclient_mock.get(GARMIN_URL.format("TestShare"), content=GARMIN_SAMPLE)
+    old_garmin = MockConfigEntry(domain=LEGACY, version=2, unique_id=f"garmin:TestShare:{UTE}", title="Trailer",
+                                 data={"provider": "garmin", "feed_id": "TestShare", "password": "", "device": UTE})
+    old_garmin.add_to_hass(hass)
+
+    assert await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+
+    assert hass.config_entries.async_entries(LEGACY) == []
+    entry, garmin = sorted(hass.config_entries.async_entries(DOMAIN), key=lambda e: e.unique_id, reverse=True)
+    assert entry.state is ConfigEntryState.LOADED
+    assert (garmin.unique_id, garmin.state) == (f"garmin:TestShare:{UTE}", ConfigEntryState.LOADED)
+    assert (entry.title, entry.unique_id) == ("Ute", "spot:feed-a:vehicle")
+    assert entry.data == {"feed_id": "feed-a", "password": "pw", "device": "vehicle"}
+    assert entry.options == {"name": "Ute", "icon": "mdi:car"}
+    entities, devices = er.async_get(hass), dr.async_get(hass)
+    moved = entities.async_get(tracker.entity_id)
+    assert tracker.entity_id == "device_tracker.my_ute"
+    assert (moved.platform, moved.config_entry_id, moved.unique_id) == (DOMAIN, entry.entry_id, "feed-a_vehicle")
+    assert entities.async_get_entity_id("device_tracker", LEGACY, "feed-a_vehicle") is None
+    assert "device_tracker.my_ute" in hass.states.async_entity_ids("device_tracker")
+    device = devices.async_get(moved.device_id)
+    assert (device.config_entry_id, device.identifiers, device.area_id) == (
+        entry.entry_id, {(DOMAIN, "feed-a_vehicle")}, "garage")
+    # The archive moved to its new name, history and all.
+    assert not old_archive.exists() and (config_dir / "satellite_tracker_history.sqlite").is_file()
+    assert hass.data[DOMAIN].list_devices("feed-a")[0]["count"] == 2
+
+
+async def test_old_feed_entries_from_before_vehicles_are_split_while_taken_over(hass, config_dir, aioclient_mock):
+    aioclient_mock.get(FEED_URL.format("feed-a"), text=feed_xml(("vehicle", "Bluey", 300, -37.0, 145.0),
+                                                                ("trailer", "Camper", 300, -38.0, 146.0)))
+    old = MockConfigEntry(domain=LEGACY, version=1, unique_id="feed-a", title="SPOT feed-a",
+                          data={"feed_id": "feed-a", "password": ""},
+                          options={"devices": {"vehicle": {"name": "Ute"}, "trailer": {"enabled": False}}})
+    old.add_to_hass(hass)
+    legacy_registry(hass, old, "feed-a", "vehicle")
+
+    assert await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+    vehicles = {e.data["device"]: e for e in hass.config_entries.async_entries(DOMAIN)}
+    assert set(vehicles) == {"vehicle", "trailer"}
+    assert vehicles["vehicle"].options == {"name": "Ute"}
+    assert vehicles["trailer"].options == {"enabled": False}
+    assert hass.config_entries.async_entries(LEGACY) == []
+    assert er.async_get(hass).async_get(tracker_id(hass, "feed-a", "vehicle")).config_entry_id == (
+        vehicles["vehicle"].entry_id)
+
+
+async def test_nothing_is_taken_over_while_the_old_integration_is_installed(hass, config_dir, aioclient_mock):
+    from homeassistant.helpers import issue_registry as ir
+    old = MockConfigEntry(domain=LEGACY, version=2, unique_id="spot:feed-a:vehicle",
+                          data={"feed_id": "feed-a", "password": "", "device": "vehicle"})
+    old.add_to_hass(hass)
+    legacy_registry(hass, old, "feed-a", "vehicle")
+    hass.config.components.add(LEGACY)
+
+    assert await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+    assert hass.config_entries.async_entries(LEGACY) == [old]
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    assert er.async_get(hass).async_get_entity_id("device_tracker", LEGACY, "feed-a_vehicle")
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, "legacy_installed")
+    assert (issue.translation_key, issue.severity) == ("legacy_installed", ir.IssueSeverity.ERROR)
+    assert aioclient_mock.call_count == 0

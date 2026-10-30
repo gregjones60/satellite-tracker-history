@@ -129,5 +129,11 @@
     "no_vehicle": {
       "message": "This entry for SPOT feed {feed_id} has no messenger, because none had reported before the update that made each vehicle its own entry. Delete it and add the vehicle again."
     }
+  },
+  "issues": {
+    "legacy_installed": {
+      "title": "Remove the old SPOT Trace History integration",
+      "description": "Satellite Tracker History is the new name of SPOT Trace History. It takes over your vehicles, trackers and history automatically, but only once the old integration is no longer installed.\n\nIn HACS, remove SPOT Trace History (or delete the folder `custom_components/spot_trace_history`), then restart Home Assistant. Your vehicles, entity IDs and history carry over."
+    }
   }
 }

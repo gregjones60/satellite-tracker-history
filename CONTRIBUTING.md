@@ -23,7 +23,7 @@ This updates the version fields and README, and embeds the version in the ZIP's 
 
 After building, run `python scripts/validate_release.py` to validate the actual
 ZIP. An explicit artifact/version can be checked with
-`python scripts/validate_release.py dist/spot_trace_history-0.5.12.zip --version 0.5.12`.
+`python scripts/validate_release.py dist/satellite_tracker_history-0.5.12.zip --version 0.5.12`.
 Add `--ref v0.5.12` to also compare every packaged file with the Git tag HACS
 uses. Both the tag's files and the current checkout must match the ZIP.
 The check requires Node.js and verifies the package's complete file list,
@@ -58,6 +58,6 @@ can reject the push, in which case publication stops without forcing changes.
 Pull-request and manually triggered CI runs do not publish. HACS displays
 published release tags; branch installs may still display a commit hash.
 
-The release ZIP contains the **contents** of `custom_components/spot_trace_history`,
+The release ZIP contains the **contents** of `custom_components/satellite_tracker_history`,
 which is the HACS integration release asset layout.
 Do not commit credentials, SPOT feed passwords, GPX history or SQLite databases.

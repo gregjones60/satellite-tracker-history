@@ -2,10 +2,10 @@ import sqlite3
 
 import pytest
 
-import custom_components.spot_trace_history.store as store_module
+import custom_components.satellite_tracker_history.store as store_module
 import types
 
-from custom_components.spot_trace_history.store import Store, async_get_store
+from custom_components.satellite_tracker_history.store import Store, async_get_store
 
 
 def point(identifier, device="Bluey", time=100, lat=-37.0, lon=145.0):
@@ -74,5 +74,23 @@ def test_connections_closed_and_schema_created_once(tmp_path, monkeypatch):
 def test_one_archive_is_shared_by_every_caller(tmp_path):
     hass = types.SimpleNamespace(data={}, config=types.SimpleNamespace(path=lambda name: str(tmp_path / name)))
     store = async_get_store(hass)
-    assert store.path == tmp_path / "spot_trace_history.sqlite"
+    assert store.path == tmp_path / "satellite_tracker_history.sqlite"
     assert async_get_store(hass) is store
+
+
+def test_the_archive_is_renamed_once_with_its_side_files(tmp_path):
+    from custom_components.satellite_tracker_history.store import move_legacy_archive
+    old = tmp_path / 'spot_trace_history.sqlite'
+    new = tmp_path / 'satellite_tracker_history.sqlite'
+    assert move_legacy_archive(tmp_path) is False
+    Store(old).insert('feed', [{'id': '1', 'device': 'd', 'name': 'n', 'time': 1, 'lat': 0, 'lon': 0, 'type': 'T'}])
+    (tmp_path / 'spot_trace_history.sqlite-wal').write_bytes(b'wal')
+    assert move_legacy_archive(tmp_path) is True
+    assert not old.exists() and not (tmp_path / 'spot_trace_history.sqlite-wal').exists()
+    assert (tmp_path / 'satellite_tracker_history.sqlite-wal').read_bytes() == b'wal'
+    assert Store(new).list_devices('feed')[0]['count'] == 1
+    # A new archive is never overwritten by an old one that reappears, say from a restored backup.
+    old.write_bytes(b'restored')
+    assert move_legacy_archive(tmp_path) is False
+    assert old.read_bytes() == b'restored'
+    assert Store(new).list_devices('feed')[0]['count'] == 1

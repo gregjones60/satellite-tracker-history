@@ -1,6 +1,6 @@
 from pathlib import Path
 import pytest
-from custom_components.spot_trace_history.gpx import parse_gpx
+from custom_components.satellite_tracker_history.gpx import parse_gpx
 
 
 def test_real_spot_activity_report():

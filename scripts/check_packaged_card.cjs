@@ -32,14 +32,14 @@ const context = {
   },
 };
 const source = fs.readFileSync(0, 'utf8');
-vm.runInNewContext(source, context, {filename:'packaged-spot-trace-history-card.js', timeout:1000});
-const Card = registry.get('spot-trace-history-card');
+vm.runInNewContext(source, context, {filename:'packaged-satellite-tracker-history-card.js', timeout:1000});
+const Card = registry.get('satellite-tracker-history-card');
 assert.equal(typeof Card, 'function', 'Packaged card did not register its custom element');
 for (const method of ['renderPlayback', 'scrubPlayback', 'togglePlayback', 'playbackPoint', 'startPlayback', 'pausePlayback', 'playbackTick']) {
   assert.equal(typeof Card.prototype[method], 'function', `Packaged card is missing ${method}`);
 }
 const card = new Card();
-card.setConfig({type:'custom:spot-trace-history-card'});
+card.setConfig({type:'custom:satellite-tracker-history-card'});
 assert.ok(card.shadowRoot.innerHTML.includes('class="playback-enabled"'), 'Packaged card is missing the timeline control');
 assert.ok(card.shadowRoot.innerHTML.includes('class="playback-slider"'), 'Packaged card is missing the timeline slider');
 assert.equal(typeof node('.playback-slider').oninput, 'function', 'Timeline slider is not wired');

@@ -10,7 +10,7 @@ from unittest.mock import Mock
 import pytest
 import voluptuous as vol
 
-from custom_components.spot_trace_history.store import Store
+from custom_components.satellite_tracker_history.store import Store
 
 
 def test_trips_survive_reopening_legacy_archive(tmp_path):
@@ -140,8 +140,8 @@ def websocket_module(monkeypatch):
     cv.string = str
     for module in (components,api,cv):
         monkeypatch.setitem(sys.modules,module.__name__,module)
-    path = Path(__file__).resolve().parents[1] / 'custom_components/spot_trace_history/trips.py'
-    spec = importlib.util.spec_from_file_location('custom_components.spot_trace_history.trips',path)
+    path = Path(__file__).resolve().parents[1] / 'custom_components/satellite_tracker_history/trips.py'
+    spec = importlib.util.spec_from_file_location('custom_components.satellite_tracker_history.trips',path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -154,7 +154,7 @@ async def test_websocket_create_list_and_validation(websocket_module,tmp_path):
     hass = types.SimpleNamespace(config=types.SimpleNamespace(path=lambda name:str(tmp_path/name)),
                                  async_add_executor_job=execute,data={})
     connection = Mock()
-    message = {'id':1,'type':'spot_trace_history/create_trip','name':'Camping',
+    message = {'id':1,'type':'satellite_tracker_history/create_trip','name':'Camping',
                'start_date':'2026-01-01','end_date':'2026-01-02',
                'devices':[{'feed_id':'vehicle-feed','device':'vehicle-id'}]}
     # HA adds the request id separately; validate the command payload.
@@ -177,10 +177,10 @@ async def test_websocket_update_delete_and_stale_selection(websocket_module,tmp_
         return fn(*args)
     hass = types.SimpleNamespace(config=types.SimpleNamespace(path=lambda name:str(tmp_path/name)),
                                  async_add_executor_job=execute,data={})
-    store = Store(tmp_path / 'spot_trace_history.sqlite')
+    store = Store(tmp_path / 'satellite_tracker_history.sqlite')
     trip = store.create_trip('Camping','2026-01-01','2026-01-02')
     connection = Mock()
-    update = {'id':1,'type':'spot_trace_history/update_trip','trip_id':trip['id'],
+    update = {'id':1,'type':'satellite_tracker_history/update_trip','trip_id':trip['id'],
               'name':'Summer','start_date':'2026-01-02','end_date':'2026-01-03',
               'devices':[{'feed_id':'camper-feed','device':'camper-id'}]}
     websocket_module.ws_update_trip.schema({k:v for k,v in update.items() if k!='id'})
@@ -191,7 +191,7 @@ async def test_websocket_update_delete_and_stale_selection(websocket_module,tmp_
     await websocket_module.ws_update_trip(hass,connection,{**update,'name':' '})
     assert connection.send_error.call_args.args[:2] == (1,'invalid_trip')
     connection.reset_mock()
-    delete = {'id':2,'type':'spot_trace_history/delete_trip','trip_id':trip['id']}
+    delete = {'id':2,'type':'satellite_tracker_history/delete_trip','trip_id':trip['id']}
     websocket_module.ws_delete_trip.schema({k:v for k,v in delete.items() if k!='id'})
     await websocket_module.ws_delete_trip(hass,connection,delete)
     connection.send_result.assert_called_with(2,{'deleted':trip['id']})

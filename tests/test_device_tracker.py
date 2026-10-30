@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from custom_components.spot_trace_history.const import DOMAIN
+from custom_components.satellite_tracker_history.const import DOMAIN
 
 
 @pytest.fixture
@@ -26,8 +26,8 @@ def trackers(monkeypatch):
     registry.DeviceInfo = dict
     for module in (components,tracker,update,registry):
         monkeypatch.setitem(sys.modules,module.__name__,module)
-    path = Path(__file__).resolve().parents[1]/'custom_components/spot_trace_history/device_tracker.py'
-    spec = importlib.util.spec_from_file_location('custom_components.spot_trace_history.device_tracker',path)
+    path = Path(__file__).resolve().parents[1]/'custom_components/satellite_tracker_history/device_tracker.py'
+    spec = importlib.util.spec_from_file_location('custom_components.satellite_tracker_history.device_tracker',path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

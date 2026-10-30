@@ -39,7 +39,7 @@ def next_release_version(current, tags):
 
 
 def build_release(root, version=None):
-    source = root / "custom_components/spot_trace_history"
+    source = root / "custom_components/satellite_tracker_history"
     manifest_path = source / "manifest.json"
     package_path = root / "package.json"
     manifest = json.loads(manifest_path.read_text())
@@ -48,14 +48,14 @@ def build_release(root, version=None):
     readme_path = root / "README.md"
     readme = readme_path.read_text()
     updated_readme, count = re.subn(
-        r"(?m)^(# SPOT Trace History v)\S+",
+        r"(?m)^(# Satellite Tracker History v)\S+",
         lambda match: match[1] + version,
         readme,
     )
     if count != 1:
-        raise ValueError("README.md must contain one versioned SPOT Trace History heading")
+        raise ValueError("README.md must contain one versioned Satellite Tracker History heading")
     updated_readme = re.sub(
-        r"(/spot_trace_history/spot-trace-history-card\.js\?v=)[0-9]+\.[0-9]+\.[0-9]+",
+        r"(/satellite_tracker_history/satellite-tracker-history-card\.js\?v=)[0-9]+\.[0-9]+\.[0-9]+",
         lambda match: match[1] + version,
         updated_readme,
     )
@@ -67,7 +67,7 @@ def build_release(root, version=None):
         readme_path.write_text(updated_readme)
     dist = root / "dist"
     dist.mkdir(exist_ok=True)
-    archive = dist / f"spot_trace_history-{version}.zip"
+    archive = dist / f"satellite_tracker_history-{version}.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
         for file in sorted(source.rglob("*")):
             if file.is_file() and "__pycache__" not in file.parts and file.suffix != ".pyc":

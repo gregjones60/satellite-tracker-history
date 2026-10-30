@@ -8,9 +8,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from custom_components.spot_trace_history.import_paths import import_source
-from custom_components.spot_trace_history.sqlite_import import parse_spot_sqlite, async_import_sqlite
-from custom_components.spot_trace_history.store import Store
+from custom_components.satellite_tracker_history.import_paths import import_source
+from custom_components.satellite_tracker_history.sqlite_import import parse_spot_sqlite, async_import_sqlite
+from custom_components.satellite_tracker_history.store import Store
 
 
 @pytest.fixture

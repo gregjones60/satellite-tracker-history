@@ -5,8 +5,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from custom_components.spot_trace_history.gpx_import import async_import_gpx
-from custom_components.spot_trace_history.store import Store
+from custom_components.satellite_tracker_history.gpx_import import async_import_gpx
+from custom_components.satellite_tracker_history.store import Store
 
 SAMPLE = Path(__file__).parent / 'fixtures/activity_report.gpx'
 MAPPING = {'Bluey': 'vehicle-123', 'Ultimate': 'trailer-456'}
