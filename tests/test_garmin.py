@@ -57,12 +57,12 @@ def test_a_feed_with_no_points_has_no_positions():
     assert parse_kml(b'<kml xmlns="http://www.opengis.net/kml/2.2"><Document/></kml>') == []
 
 
-@pytest.mark.parametrize('value', ['6Q2XE7DS42', ' 6Q2XE7DS42 ', 'https://share.garmin.com/6Q2XE7DS42',
-                                   'share.garmin.com/6Q2XE7DS42/', 'https://share.garmin.com/Feed/Share/6Q2XE7DS42',
-                                   'https://share.garmin.com/Feed/ShareLoader/6Q2XE7DS42?d1=2026-01-01',
-                                   'https://aus-share.explore.garmin.com/Feed/Share/6Q2XE7DS42'])
+@pytest.mark.parametrize('value', ['TestShare42', ' TestShare42 ', 'https://share.garmin.com/TestShare42',
+                                   'share.garmin.com/TestShare42/', 'https://share.garmin.com/Feed/Share/TestShare42',
+                                   'https://share.garmin.com/Feed/ShareLoader/TestShare42?d1=2026-01-01',
+                                   'https://aus-share.explore.garmin.com/Feed/Share/TestShare42'])
 def test_mapshare_name_from_a_name_or_any_link(value):
-    assert mapshare_name(value) == '6Q2XE7DS42'
+    assert mapshare_name(value) == 'TestShare42'
 
 
 @pytest.mark.parametrize('value', ['', 'two words', 'https://share.garmin.com/', 'name?x'])
