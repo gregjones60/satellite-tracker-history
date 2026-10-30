@@ -9,7 +9,7 @@ from homeassistant.helpers import selector
 
 from .api import FEED_NOT_FOUND, SpotAPI, SpotFeedError
 from .const import (CONF_DEVICE, CONF_FEED_ID, CONF_ICON, CONF_MAPSHARE, CONF_NAME, CONF_PASSWORD, CONF_PROVIDER,
-                    DOMAIN, PROVIDER_GARMIN, PROVIDER_SPOT)
+                    DOMAIN, LEGACY_DOMAIN, PROVIDER_GARMIN, PROVIDER_SPOT)
 from .coordinator import BACKFILL
 from .garmin import NOT_FOUND, GarminAPI, GarminFeedError, mapshare_name
 from .store import async_get_store
@@ -58,7 +58,22 @@ class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._devices: dict[str, str] = {}
 
     async def async_step_user(self, user_input=None):
+        # Home Assistant does not load this integration at startup until it has entries, so adding
+        # it is where vehicles still under its old name are found.
+        if self.hass.config_entries.async_entries(LEGACY_DOMAIN):
+            return await self.async_step_legacy()
         return self.async_show_menu(step_id="user", menu_options=[PROVIDER_SPOT, PROVIDER_GARMIN])
+
+    async def async_step_legacy(self, user_input=None):
+        """Bring over the vehicles set up under the integration's old name."""
+        if LEGACY_DOMAIN in self.hass.config.components:
+            return self.async_abort(reason="legacy_installed")
+        if user_input is None:
+            count = len(self.hass.config_entries.async_entries(LEGACY_DOMAIN))
+            return self.async_show_form(step_id="legacy", description_placeholders={"count": str(count)})
+        from . import async_take_over_legacy  # noqa: PLC0415 - the integration imports this module
+        created = await async_take_over_legacy(self.hass)
+        return self.async_abort(reason="legacy_imported", description_placeholders={"count": str(created)})
 
     async def async_step_spot(self, user_input=None):
         """A SPOT shared feed, by its feed ID."""

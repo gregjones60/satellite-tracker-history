@@ -35,7 +35,7 @@ def test_flow_steps_errors_and_aborts_are_translated():
     used_aborts = set(re.findall(r'reason="(\w+)"', source))
     # The provider menu's options are steps too, named after the providers.
     used_steps |= set(re.findall(r'async def async_step_(\w+)', source)) - {"import"}
-    assert used_steps == {"user", "spot", "garmin", "vehicle", "reconfigure", "init"}
+    assert used_steps == {"user", "legacy", "spot", "garmin", "vehicle", "reconfigure", "init"}
     assert used_steps - {"init"} <= set(STRINGS["config"]["step"])
     assert set(STRINGS["config"]["step"]["user"]["menu_options"]) == {"spot", "garmin"}
     assert set(STRINGS["options"]["step"]) == {"init"}

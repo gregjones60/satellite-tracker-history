@@ -741,3 +741,51 @@ async def test_nothing_is_taken_over_while_the_old_integration_is_installed(hass
     issue = ir.async_get(hass).async_get_issue(DOMAIN, "legacy_installed")
     assert (issue.translation_key, issue.severity) == ("legacy_installed", ir.IssueSeverity.ERROR)
     assert aioclient_mock.call_count == 0
+
+
+async def test_adding_the_integration_brings_over_old_vehicles_and_merges_the_archive(
+        hass, config_dir, aioclient_mock):
+    """The state an upgrade left behind: old entries, the old archive, and an empty new archive."""
+    aioclient_mock.get(FEED_URL.format("feed-a"), text=feed_xml(("vehicle", "Bluey", 300, -37.0, 145.0)))
+    from custom_components.satellite_tracker_history.store import Store
+    Store(config_dir / "satellite_tracker_history.sqlite").list_devices("feed-a")
+    Store(config_dir / "spot_trace_history.sqlite").insert("feed-a", [
+        {"id": f"old-{t}", "device": "vehicle", "name": "Bluey", "time": t, "lat": -36.0, "lon": 144.0, "type": "TRACK"}
+        for t in (100, 200)])
+    old = MockConfigEntry(domain=LEGACY, version=2, unique_id="spot:feed-a:vehicle", title="Ute",
+                          data={"feed_id": "feed-a", "password": "", "device": "vehicle"}, options={"name": "Ute"})
+    old.add_to_hass(hass)
+    tracker = legacy_registry(hass, old, "feed-a", "vehicle", object_id="my_ute")
+    assert DOMAIN not in hass.config.components
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    assert (result["type"], result["step_id"]) == ("form", "legacy")
+    assert result["description_placeholders"] == {"count": "1"}
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert (result["type"], result["reason"]) == ("abort", "legacy_imported")
+    assert result["description_placeholders"] == {"count": "1"}
+    await hass.async_block_till_done()
+
+    assert hass.config_entries.async_entries(LEGACY) == []
+    (entry,) = hass.config_entries.async_entries(DOMAIN)
+    assert (entry.state, entry.options) == (ConfigEntryState.LOADED, {"name": "Ute"})
+    moved = er.async_get(hass).async_get(tracker.entity_id)
+    assert (moved.platform, moved.config_entry_id) == (DOMAIN, entry.entry_id)
+    assert hass.states.async_entity_ids("device_tracker") == ["device_tracker.my_ute"]
+    # Old history merged with what polling added, and the old file kept.
+    assert hass.data[DOMAIN].list_devices("feed-a")[0]["count"] == 3
+    assert (config_dir / "spot_trace_history.sqlite.migrated").is_file()
+    assert not (config_dir / "spot_trace_history.sqlite").exists()
+    # Startup's takeover, started when the new entry set the domain up, found nothing left.
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+    # Afterwards, adding the integration offers the services again.
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    assert result["type"] == "menu"
+
+
+async def test_adding_the_integration_while_the_old_one_is_installed_explains_what_to_do(hass, config_dir):
+    MockConfigEntry(domain=LEGACY, version=2, data={"feed_id": "feed-a", "password": "", "device": "v"}).add_to_hass(hass)
+    hass.config.components.add(LEGACY)
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    assert (result["type"], result["reason"]) == ("abort", "legacy_installed")
+    assert len(hass.config_entries.async_entries(LEGACY)) == 1

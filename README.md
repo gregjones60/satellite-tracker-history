@@ -49,15 +49,25 @@ Up to v0.6.1 this integration was called **SPOT Trace History**, with the domain
 3. Remove SPOT Trace History: in HACS, remove it, or delete the folder
    `/config/custom_components/spot_trace_history`. Don't delete its integration
    entries yourself; deleting them would remove the trackers.
-4. Restart Home Assistant.
+4. Restart Home Assistant. The old SPOT Trace History entries now show an error,
+   because their integration is gone; leave them.
+5. Go to **Settings → Devices & services → Add integration → Satellite Tracker
+   History**. It finds the old entries and offers to bring them over; submit.
 
-On that first start, every old vehicle is taken over: it gets a new entry with the
-same settings, and its tracker keeps its entity ID, device, area and labels. The
-archive `spot_trace_history.sqlite` is renamed `satellite_tracker_history.sqlite`
-(unless that file already exists), so history and trips carry over. Old feed
-entries from before v0.6.0 are split into vehicles on the way. If the old
-integration is still installed, nothing is moved and a repair asks you to remove
-it.
+Every old vehicle is then taken over: it gets a new entry with the same settings,
+its tracker keeps its entity ID, device, area and labels, and the old entry is
+removed. Old feed entries from before v0.6.0 are split into vehicles on the way.
+If the old integration is still installed, nothing is moved and you are asked to
+remove it first. (Home Assistant only loads an integration at startup once it has
+entries, which is why step 5 is needed; once Satellite Tracker History has
+vehicles, any old entries left are also taken over at startup.)
+
+The archive `spot_trace_history.sqlite` becomes `satellite_tracker_history.sqlite`
+the first time it is opened, so history and trips carry over. If a
+`satellite_tracker_history.sqlite` already exists, for example because v0.7.0
+created an empty one, the old archive's positions and trips are merged into it,
+without duplicates, and the old file is kept as `spot_trace_history.sqlite.migrated`.
+Delete that copy once you're happy everything is there.
 
 Also update:
 

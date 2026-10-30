@@ -1,7 +1,9 @@
 """Satellite Tracker History integration."""
+import asyncio
 from pathlib import Path
 import voluptuous as vol
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
+from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import ConfigEntryError
 from homeassistant.loader import async_get_integration
 from homeassistant.components import frontend
@@ -12,7 +14,7 @@ from homeassistant.helpers import (config_validation as cv, device_registry as d
 from homeassistant.helpers.start import async_at_started
 from .coordinator import SpotCoordinator, loaded_coordinator, loaded_coordinators
 from .vehicle import archive_feed, tracker_unique_id, vehicle_name, vehicle_unique_id
-from .store import async_get_store, move_legacy_archive
+from .store import async_get_store
 from .import_actions import register_import_actions
 from .trips import ws_trips, ws_create_trip, ws_update_trip, ws_delete_trip
 from .const import (CONF_DEVICE, CONF_DEVICES, CONF_ENABLED, CONF_FEED_ID, CONF_ICON, CONF_NAME, DOMAIN,
@@ -21,14 +23,13 @@ from .const import (CONF_DEVICE, CONF_DEVICES, CONF_ENABLED, CONF_FEED_ID, CONF_
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS=['device_tracker']
+TAKEOVER_LOCK = f'{DOMAIN}_takeover'
 
 SpotConfigEntry = ConfigEntry[SpotCoordinator]
 
 
 async def async_setup(hass, config):
     """Serve the bundled Lovelace card and register domain-wide actions and commands."""
-    # Before anything opens the archive, so it is found under its new name.
-    await hass.async_add_executor_job(move_legacy_archive, hass.config.path())
     www = Path(__file__).parent / "www"
     integration = await async_get_integration(hass, DOMAIN)
     url = f"/satellite_tracker_history/satellite-tracker-history-card.js?v={integration.version}"
@@ -43,25 +44,34 @@ async def async_setup(hass, config):
         websocket_api.async_register_command(hass, command)
 
     # Once every integration has set up, so a still-installed old integration can be detected.
-    # (Taking over during this setup would also wait on it: new entries set up the domain.)
-    async_at_started(hass, _async_take_over_legacy)
+    # Home Assistant only loads this integration at startup once it has entries of its own, so the
+    # config flow also offers the takeover.
+    async_at_started(hass, async_take_over_legacy)
     return True
 
 
-async def _async_take_over_legacy(hass):
+async def async_take_over_legacy(hass):
     """Recreate every "SPOT Trace History" entry under this domain, then remove the old entry.
 
     Each new vehicle entry moves its tracker entity and device from the old domain when it sets up.
+    Returns how many vehicles were created.
     """
+    # The config flow and startup can both start a takeover; the second finds nothing left to do.
+    async with hass.data.setdefault(TAKEOVER_LOCK, asyncio.Lock()):
+        return await _async_take_over_legacy(hass)
+
+
+async def _async_take_over_legacy(hass):
     legacy = hass.config_entries.async_entries(LEGACY_DOMAIN)
     if not legacy:
-        return
+        return 0
     if LEGACY_DOMAIN in hass.config.components:
         # Its trackers are loaded, so they cannot be moved, and both would poll the same feeds.
         ir.async_create_issue(hass, DOMAIN, 'legacy_installed', is_fixable=False,
                               severity=ir.IssueSeverity.ERROR, translation_key='legacy_installed')
-        return
+        return 0
     ir.async_delete_issue(hass, DOMAIN, 'legacy_installed')
+    created = 0
     for old in legacy:
         if old.version == 1:
             vehicles = await _async_feed_vehicles(hass, old)
@@ -72,8 +82,11 @@ async def _async_take_over_legacy(hass):
                 continue
             # Setting up the new entry moves the tracker and device, before the old entry's removal
             # would delete whatever it still owns.
-            await hass.config_entries.flow.async_init(DOMAIN, context={'source': SOURCE_IMPORT}, data=vehicle)
+            result = await hass.config_entries.flow.async_init(DOMAIN, context={'source': SOURCE_IMPORT},
+                                                               data=vehicle)
+            created += result['type'] is FlowResultType.CREATE_ENTRY
         await hass.config_entries.async_remove(old.entry_id)
+    return created
 
 
 async def async_reload_entry(hass, entry):
