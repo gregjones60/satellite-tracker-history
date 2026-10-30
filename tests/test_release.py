@@ -67,10 +67,14 @@ def test_invalid_release_version_does_not_change_project(project, invalid):
 
 
 @pytest.mark.parametrize("current,tags,expected", [
-    ("0.5.2", [], "0.5.3"),
+    # A manifest version that has never been released is published as it is.
+    ("0.5.2", [], "0.5.2"),
+    ("0.6.0", ["v0.5.10"], "0.6.0"),
+    ("0.6.0", ["v0.5.17", "v0.5.3", "other"], "0.6.0"),
+    # Once released, the next merge increments the highest released patch.
     ("0.5.2", ["v0.5.2"], "0.5.3"),
+    ("0.6.0", ["v0.6.0"], "0.6.1"),
     ("0.5.2", ["v0.5.9", "v0.5.10"], "0.5.11"),
-    ("0.6.0", ["v0.5.10"], "0.6.1"),
     ("0.5.2", ["v1.0.0", "v2.0.0-beta", "other", "vbad"], "1.0.1"),
 ])
 def test_next_release_version(current, tags, expected):

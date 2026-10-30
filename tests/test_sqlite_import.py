@@ -81,9 +81,10 @@ def test_missing_database_is_not_created(tmp_path):
 @pytest.mark.asyncio
 async def test_multifeed_import_preserves_types_ids_deduplicates_and_refreshes(source, tmp_path):
     store = Store(tmp_path / 'history.sqlite')
-    entries = [SimpleNamespace(feed=feed, entry=SimpleNamespace(entry_id=entry), store=store,
-                               async_set_updated_data=Mock())
-               for feed, entry in [('vehicle-feed','vehicle-entry'), ('trailer-feed','trailer-entry')]]
+    entries = [SimpleNamespace(feed=feed, device=device, entry=SimpleNamespace(entry_id=entry), store=store,
+                               async_set_latest=Mock())
+               for feed, device, entry in [('vehicle-feed', 'vehicle-id', 'vehicle-entry'),
+                                           ('trailer-feed', 'trailer-id', 'trailer-entry')]]
     async def execute(fn, *args):
         return fn(*args)
     hass = SimpleNamespace(async_add_executor_job=execute)
@@ -107,7 +108,7 @@ async def test_multifeed_import_preserves_types_ids_deduplicates_and_refreshes(s
     with store.connect() as db:
         assert db.execute("SELECT id FROM positions WHERE feed='trailer-feed'").fetchone()[0] == 'ios:2:two'
     for entry in entries:
-        assert entry.async_set_updated_data.call_count == 2
+        assert entry.async_set_latest.call_count == 2
     # Routing failures are detected before importing any valid fixes.
     with pytest.raises(ValueError, match='Cannot uniquely select'):
         await async_import_sqlite(hass, entries, source, {

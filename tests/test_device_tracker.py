@@ -33,36 +33,43 @@ def trackers(monkeypatch):
     return module
 
 
-def test_icon_default_and_native_device_identity_survive_rename(trackers):
-    coordinator = types.SimpleNamespace(feed='feed-a',data={'vehicle':{'name':'Bluey'}})
-    entry = types.SimpleNamespace(options={})
-    entity = trackers.SpotTracker(coordinator,entry,'vehicle')
+def vehicle(options=None, device='vehicle', feed='feed-a'):
+    return types.SimpleNamespace(data={'feed_id': feed, 'device': device}, options=options or {})
+
+
+def test_icon_name_and_native_device_identity_survive_rename(trackers):
+    coordinator = types.SimpleNamespace(data={'name': 'Bluey'})
+    entry = vehicle()
+    entity = trackers.SpotTracker(coordinator, entry)
     assert entity.icon is None
     identifiers = entity.device_info['identifiers']
-    assert identifiers == {(DOMAIN,'feed-a_vehicle')}
-    assert entity.device_info['manufacturer'] == 'SPOT'
-    entry.options = {'devices':{'vehicle':{'name':'Touring vehicle','icon':'mdi:car-estate'}}}
+    assert identifiers == {(DOMAIN, 'feed-a_vehicle')}
+    assert (entity.device_info['name'], entity.device_info['manufacturer']) == ('Bluey', 'SPOT')
+    entry.options = {'name': 'Touring vehicle', 'icon': 'mdi:car-estate'}
     assert entity.icon == 'mdi:car-estate'
     assert entity.device_info['name'] == 'Touring vehicle'
     assert entity.device_info['identifiers'] == identifiers
-    entry.options['devices']['vehicle']['icon'] = ''
-    assert entity.icon is None
-    other = trackers.SpotTracker(types.SimpleNamespace(feed='feed-b',data=coordinator.data),entry,'vehicle')
+    other = trackers.SpotTracker(coordinator, vehicle(feed='feed-b'))
     assert other.device_info['identifiers'] != identifiers
 
 
+def test_a_tracker_before_its_first_fix_has_no_position_and_uses_its_messenger_id(trackers):
+    entity = trackers.SpotTracker(types.SimpleNamespace(data=None), vehicle(device='0-123'))
+    assert (entity.latitude, entity.longitude) == (None, None)
+    assert entity.device_info['name'] == '0-123'
+    assert entity.extra_state_attributes == {'last_spot_message': None, 'message_type': None, 'messenger_id': '0-123'}
+
+
+def test_only_trackers_switched_off_before_the_split_start_disabled(trackers):
+    coordinator = types.SimpleNamespace(data=None)
+    assert trackers.SpotTracker(coordinator, vehicle())._attr_entity_registry_enabled_default is True
+    assert trackers.SpotTracker(coordinator, vehicle({'enabled': False}))._attr_entity_registry_enabled_default is False
+
+
 @pytest.mark.asyncio
-async def test_disabled_tracker_is_not_created_but_archive_data_remains(trackers):
-    coordinator = types.SimpleNamespace(feed='feed-a',data={'vehicle':{'name':'Bluey'},'trailer':{'name':'Camper'}},
-                                         async_add_listener=Mock(return_value=Mock()))
-    entry = types.SimpleNamespace(entry_id='entry',options={'devices':{'trailer':{'enabled':False}}},
-                                  async_on_unload=Mock(),runtime_data=coordinator)
-    hass = types.SimpleNamespace(data={})
+async def test_each_vehicle_entry_has_exactly_one_tracker(trackers):
+    entry = vehicle()
+    entry.runtime_data = types.SimpleNamespace(data={'name': 'Bluey'})
     add = Mock()
-    await trackers.async_setup_entry(hass,entry,add)
+    await trackers.async_setup_entry(types.SimpleNamespace(data={}), entry, add)
     assert [entity.device for entity in add.call_args.args[0]] == ['vehicle']
-    assert set(coordinator.data) == {'vehicle','trailer'}
-    # A new messenger discovered during later polling gets its native device too.
-    coordinator.data['second-vehicle'] = {'name':'Second vehicle'}
-    coordinator.async_add_listener.call_args.args[0]()
-    assert [entity.device for entity in add.call_args.args[0]] == ['second-vehicle']

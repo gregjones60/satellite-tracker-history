@@ -11,8 +11,12 @@ NO_MESSAGES = 'E-0195'
 FEED_NOT_FOUND = 'E-0160'
 
 
-class SpotAPIError(Exception):
-    """Feed request failure whose message never includes the request URL or password."""
+class TrackerAPIError(Exception):
+    """Feed request failure from any tracker service; the message never includes a URL or password."""
+
+
+class SpotAPIError(TrackerAPIError):
+    """SPOT feed request failure whose message never includes the request URL or password."""
 
 
 class SpotFeedError(ValueError):
@@ -29,6 +33,10 @@ class SpotAPI:
         self.session = async_get_clientsession(hass)
         self.url = f"https://api.findmespot.com/spot-main-web/consumer/rest-api/2.0/public/feed/{quote(feed, safe='')}/message.xml"
         self.password = password
+
+    async def fetch(self, since=None):
+        """The newest page of positions; SPOT has no time filter, so `since` is ignored."""
+        return await self.page()
 
     async def page(self, start=1):
         params = {'start': start}
