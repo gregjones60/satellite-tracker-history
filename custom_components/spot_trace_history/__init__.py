@@ -9,11 +9,11 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.components import websocket_api
 from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
 from .coordinator import SpotCoordinator, loaded_coordinator, loaded_coordinators
-from .device_tracker import tracker_unique_id, vehicle_name, vehicle_unique_id
+from .vehicle import archive_feed, tracker_unique_id, vehicle_name, vehicle_unique_id
 from .store import async_get_store
 from .import_actions import register_import_actions
 from .trips import ws_trips, ws_create_trip, ws_update_trip, ws_delete_trip
-from .const import CONF_DEVICE, CONF_DEVICES, CONF_ENABLED, CONF_FEED_ID, CONF_ICON, CONF_NAME, DOMAIN
+from .const import CONF_DEVICE, CONF_DEVICES, CONF_ENABLED, CONF_FEED_ID, CONF_ICON, CONF_NAME, DOMAIN, PROVIDER_SPOT
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -79,7 +79,7 @@ async def _async_split_feed_entry(hass, entry):
         hass.config_entries.async_update_entry(entry, version=2, data={**entry.data, CONF_DEVICE: None}, options={})
         return
     first, *others = messengers
-    hass.config_entries.async_update_entry(entry, version=2, unique_id=vehicle_unique_id(feed, first),
+    hass.config_entries.async_update_entry(entry, version=2, unique_id=vehicle_unique_id(PROVIDER_SPOT, feed, first),
                                            **vehicle(first))
     for device in others:
         await hass.config_entries.flow.async_init(DOMAIN, context={'source': SOURCE_IMPORT}, data=vehicle(device))
@@ -90,7 +90,7 @@ def _adopt_registry_entries(hass, entry):
 
     The tracker entity needs no help: registering its unique ID moves it to this entry.
     """
-    unique_id = tracker_unique_id(entry.data[CONF_FEED_ID], entry.data[CONF_DEVICE])
+    unique_id = tracker_unique_id(archive_feed(entry.data), entry.data[CONF_DEVICE])
     devices = dr.async_get(hass)
     for other in hass.config_entries.async_entries(DOMAIN):
         # Device identifiers are only unique within a config entry, so look in each one.
@@ -118,7 +118,7 @@ async def async_unload_entry(hass,entry: SpotConfigEntry):
 
 async def async_remove_config_entry_device(hass, entry: SpotConfigEntry, device_entry):
     """The vehicle's own device goes with its entry; any other leftover device may be deleted."""
-    own = tracker_unique_id(entry.data[CONF_FEED_ID], entry.data[CONF_DEVICE])
+    own = tracker_unique_id(archive_feed(entry.data), entry.data[CONF_DEVICE])
     return (DOMAIN, own) not in device_entry.identifiers
 
 

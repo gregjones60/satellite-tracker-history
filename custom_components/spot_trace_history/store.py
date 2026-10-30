@@ -153,6 +153,11 @@ class Store:
               FROM positions p WHERE p.feed=? GROUP BY p.device ORDER BY 2''', (feed,)).fetchall()
         return [{'device':r[0], 'name':r[1], 'count':r[2], 'first':r[3], 'last':r[4]} for r in rows]
 
+    def latest_time(self, feed):
+        """The time of the feed's newest archived position, or None."""
+        with self.connect() as db:
+            return db.execute('SELECT MAX(time) FROM positions WHERE feed=?', (feed,)).fetchone()[0]
+
     def device_summary(self, feed, device):
         """One device's entry from list_devices, or None if nothing is archived for it."""
         return next((d for d in self.list_devices(feed) if d['device'] == device), None)

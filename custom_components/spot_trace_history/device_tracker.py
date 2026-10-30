@@ -5,24 +5,11 @@ from homeassistant.components.device_tracker import SourceType, TrackerEntity
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_DEVICE, CONF_ENABLED, CONF_FEED_ID, CONF_ICON, CONF_NAME, DOMAIN
+from .const import CONF_DEVICE, CONF_ENABLED, CONF_ICON, DOMAIN, PROVIDER_SPOT
+from .vehicle import MANUFACTURERS, archive_feed, provider, tracker_unique_id, vehicle_name
 
 # Updates come from the coordinator; entities never poll.
 PARALLEL_UPDATES = 0
-
-
-def tracker_unique_id(feed, device):
-    return f"{feed}_{device}"
-
-
-def vehicle_unique_id(feed, device):
-    """The config entry's unique ID; the provider prefix leaves room for other tracker services."""
-    return f"spot:{feed}:{device}"
-
-
-def vehicle_name(entry, position=None):
-    """The vehicle's chosen name, else the name SPOT reports, else its messenger ID."""
-    return entry.options.get(CONF_NAME) or (position or {}).get("name") or entry.data[CONF_DEVICE]
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -39,7 +26,8 @@ class SpotTracker(CoordinatorEntity, TrackerEntity):
         super().__init__(coordinator)
         self.entry = entry
         self.device = entry.data[CONF_DEVICE]
-        self._attr_unique_id = tracker_unique_id(entry.data[CONF_FEED_ID], self.device)
+        self.provider = provider(entry.data)
+        self._attr_unique_id = tracker_unique_id(archive_feed(entry.data), self.device)
         # Applies only when the entity is first registered; trackers switched off before
         # vehicles had their own entries are created disabled. Later changes belong to HA.
         self._attr_entity_registry_enabled_default = entry.options.get(CONF_ENABLED, True)
@@ -60,7 +48,7 @@ class SpotTracker(CoordinatorEntity, TrackerEntity):
     def device_info(self):
         """Associate the tracker with a native HA device for area/label settings."""
         return DeviceInfo(identifiers={(DOMAIN, self._attr_unique_id)}, name=vehicle_name(self.entry, self._position),
-                          manufacturer='SPOT', serial_number=self.device)
+                          manufacturer=MANUFACTURERS[self.provider], serial_number=self.device)
 
     @property
     def latitude(self):
@@ -73,12 +61,8 @@ class SpotTracker(CoordinatorEntity, TrackerEntity):
     @property
     def extra_state_attributes(self):
         p = self._position
-        return {
-            "last_spot_message": datetime.fromtimestamp(
-                p["time"], timezone.utc
-            ).isoformat()
-            if p.get("time")
-            else None,
-            "message_type": p.get("type"),
-            "messenger_id": self.device,
-        }
+        last = datetime.fromtimestamp(p["time"], timezone.utc).isoformat() if p.get("time") else None
+        if self.provider == PROVIDER_SPOT:
+            # SPOT's attribute names predate other services; automations may rely on them.
+            return {"last_spot_message": last, "message_type": p.get("type"), "messenger_id": self.device}
+        return {"last_message": last, "message_type": p.get("type"), "imei": self.device}

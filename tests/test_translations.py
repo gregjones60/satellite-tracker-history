@@ -33,10 +33,17 @@ def test_flow_steps_errors_and_aborts_are_translated():
     # Error keys are written against "base" or a field constant such as CONF_FEED_ID.
     used_errors = set(re.findall(r'(?:"base"|CONF_\w+)\]? ?[:=] ?"(\w+)"', source))
     used_aborts = set(re.findall(r'reason="(\w+)"', source))
-    assert used_steps == {"user", "vehicle", "reconfigure", "init"}
-    assert {"user", "vehicle", "reconfigure"} <= set(STRINGS["config"]["step"])
+    # The provider menu's options are steps too, named after the providers.
+    used_steps |= set(re.findall(r'async def async_step_(\w+)', source)) - {"import"}
+    assert used_steps == {"user", "spot", "garmin", "vehicle", "reconfigure", "init"}
+    assert used_steps - {"init"} <= set(STRINGS["config"]["step"])
+    assert set(STRINGS["config"]["step"]["user"]["menu_options"]) == {"spot", "garmin"}
     assert set(STRINGS["options"]["step"]) == {"init"}
-    assert used_errors == {"cannot_connect", "feed_not_found", "feed_rejected", "no_messenger"}
+    assert used_errors == {"cannot_connect", "feed_not_found", "feed_rejected", "no_messenger",
+                           "mapshare_not_found", "mapshare_rejected"}
+    # Feed-ID parse failures are passed to the shared feed step by name.
+    used_errors |= set(re.findall(r'"(\w+_invalid)"', source)) | {"feed_not_found"}
+    assert "mapshare_invalid" in used_errors
     assert used_errors <= set(STRINGS["config"]["error"])
     assert used_aborts <= set(STRINGS["config"]["abort"])
     assert {"already_configured", "reconfigure_successful"} <= set(STRINGS["config"]["abort"])

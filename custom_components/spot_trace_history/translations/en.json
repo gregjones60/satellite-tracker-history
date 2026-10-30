@@ -3,34 +3,53 @@
     "step": {
       "user": {
         "title": "Add a vehicle",
-        "description": "Each vehicle is one SPOT messenger. Enter the ID of the SPOT shared feed it reports to, and the feed password if the feed has one. Vehicles that share a feed are polled together.",
+        "description": "Each vehicle is one tracker. Choose the service it reports to.",
+        "menu_options": {
+          "spot": "SPOT shared feed",
+          "garmin": "Garmin inReach MapShare"
+        }
+      },
+      "spot": {
+        "title": "SPOT shared feed",
+        "description": "Enter the ID of the SPOT shared feed this vehicle's messenger reports to, and the feed password if the feed has one. Vehicles that share a feed are polled together.",
         "data": {
           "feed_id": "Feed ID",
           "password": "Feed password (optional)"
         }
       },
+      "garmin": {
+        "title": "Garmin inReach MapShare",
+        "description": "Enter your MapShare name, or paste any MapShare link (for example share.garmin.com/YourName or a KML feed link). If your MapShare has a password, enter it too. Vehicles that share a MapShare are polled together.",
+        "data": {
+          "mapshare": "MapShare name or link",
+          "password": "MapShare password (optional)"
+        }
+      },
       "vehicle": {
         "title": "Choose the vehicle's tracker",
-        "description": "Feed ID: {feed_id}\n\nChoose this vehicle's messenger ({count} found in the feed and archive that are not set up yet), or type its messenger ID if the feed has been quiet. Add the feed again for each other messenger.\n\nLeave the name empty to use the name SPOT reports, and the icon empty for the default.",
+        "description": "Feed: {feed_id}\n\nChoose this vehicle's device ({count} found in the last 30 days of the feed and in the archive that are not set up yet), or type its ID if the feed has been quiet: the messenger ID for SPOT, or the IMEI for Garmin. Add the feed again for each other device.\n\nLeave the name empty to use the name the service reports, and the icon empty for the default.",
         "data": {
-          "device": "Messenger",
+          "device": "Device",
           "name": "Vehicle name (optional)",
           "icon": "Icon (optional)"
         }
       },
       "reconfigure": {
         "title": "Update feed password",
-        "description": "Feed ID: {feed_id}\n\nEnter the current password for this shared SPOT feed, or leave it empty if the feed has none. The feed and messenger cannot be changed because they identify this vehicle's tracker and archived history.",
+        "description": "Feed: {feed_id}\n\nEnter the current password for this shared feed, or leave it empty if it has none. The feed and device cannot be changed because they identify this vehicle's tracker and archived history.",
         "data": {
           "password": "Feed password (optional)"
         }
       }
     },
     "error": {
-      "cannot_connect": "Could not read the SPOT feed",
+      "cannot_connect": "Could not read the feed",
       "feed_not_found": "SPOT has no feed with this ID. Check the ID of your shared feed.",
       "feed_rejected": "SPOT rejected the request: {spot_error}. Check the feed password.",
-      "no_messenger": "Choose or type a messenger ID"
+      "no_messenger": "Choose or type the device ID",
+      "mapshare_invalid": "Enter a MapShare name, or a link that ends with one",
+      "mapshare_not_found": "Garmin has no MapShare with this name",
+      "mapshare_rejected": "Garmin refused the MapShare: its password is missing or wrong"
     },
     "abort": {
       "already_configured": "This vehicle is already configured",
@@ -41,7 +60,7 @@
     "step": {
       "init": {
         "title": "Vehicle settings",
-        "description": "Feed ID: {feed_id}\n\nMessenger ID: {device_id}\n\nStored positions: {message_count}\n\nFirst archived position: {first_position}\n\nLatest archived position: {latest_position}\n\nLatest coordinates (latitude, longitude): {coordinates}\n\nLeave the name empty to use {default_name}, and the icon empty for the default. To stop the tracker but keep collecting positions and map history, disable the tracker entity. For entity ID, area, labels, visibility and voice assistant settings, open the tracker under Settings → Devices & services → Entities.",
+        "description": "Feed ID: {feed_id}\n\nDevice ID: {device_id}\n\nStored positions: {message_count}\n\nFirst archived position: {first_position}\n\nLatest archived position: {latest_position}\n\nLatest coordinates (latitude, longitude): {coordinates}\n\nLeave the name empty to use {default_name}, and the icon empty for the default. To stop the tracker but keep collecting positions and map history, disable the tracker entity. For entity ID, area, labels, visibility and voice assistant settings, open the tracker under Settings → Devices & services → Entities.",
         "data": {
           "name": "Vehicle name (optional)",
           "icon": "Icon (optional)"

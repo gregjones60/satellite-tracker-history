@@ -2,13 +2,36 @@
   <img src="branding/logo.png" alt="SPOT Trace History" width="250">
 </p>
 
-# SPOT Trace History v0.6.0 — multi-feed prototype + bundled card
+# SPOT Trace History v0.6.0 — SPOT and Garmin trackers + bundled card
 
-Each **vehicle** is a separate integration configuration entry: one tracker, which for SPOT is one messenger in a SPOT shared feed. To add a vehicle, go to **Settings → Devices & services → Add integration → SPOT Trace History**, enter the feed ID (and password if needed), then choose the vehicle's messenger. The list shows messengers the feed has reported recently or the archive holds; if the feed has been quiet, type the messenger ID. Add the same feed again for each other messenger on it. Vehicles that share a feed are polled together, with one request per feed.
+Each **vehicle** is a separate integration configuration entry: one tracker, which is either a messenger in a **SPOT shared feed** or a device in a **Garmin inReach MapShare**. To add a vehicle, go to **Settings → Devices & services → Add integration → SPOT Trace History**, choose the service, enter the feed (and password if needed), then choose the vehicle's device. The list shows devices the feed has reported recently or the archive holds; if the feed has been quiet, type the device's ID (the SPOT messenger ID, or the Garmin IMEI). Add the same feed again for each other device on it. Vehicles that share a feed are polled together, with one request per feed.
+
+### Garmin inReach MapShare
+
+For Garmin, enter your MapShare name, or paste any MapShare link: the map page
+(`share.garmin.com/YourName`), the KML feed (`…/Feed/Share/YourName`) or the
+Google Earth loader (`…/Feed/ShareLoader/YourName`), including regional
+addresses such as `aus-share.explore.garmin.com`. If the MapShare has a
+password, enter it; Garmin's feed needs it whenever one is set.
+
+- A MapShare normally shows only each device's latest point, so setup and the
+  first poll fetch the last 30 days, and each later poll asks for everything
+  since the newest archived fix. A gap while Home Assistant was down is filled.
+- Each point names its device by IMEI, so a MapShare with several devices gives
+  one vehicle per device. The tracker's device page shows the IMEI as its serial
+  number, and its attributes are `imei`, `last_message` and `message_type`
+  (`TRACK`, `MESSAGE` when the point carries a text, or `EMERGENCY`).
+- Points without a valid GPS fix, and the MapShare's track line, are not
+  archived.
+- Garmin history is archived separately from SPOT, so a MapShare and a SPOT
+  feed with the same name never mix.
+
+Garmin's own MapShare feed documentation could not be retrieved while this was
+written; the integration follows the feed as a real MapShare serves it.
 
 The password field is masked. To change a password later, open the vehicle's
 **⋮** menu on the integration page and choose **Reconfigure**. The feed and
-messenger cannot be changed, because they identify the vehicle's tracker and
+device cannot be changed, because they identify the vehicle's tracker and
 archived history.
 
 The custom map card automatically shows **all** configured vehicles together. Do **not** set `entry_id` on the card unless you intentionally want to show just one vehicle. Each vehicle can be removed independently through Home Assistant's integrations page. The SQLite archive is retained on removal.

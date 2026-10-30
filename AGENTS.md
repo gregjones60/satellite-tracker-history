@@ -3,10 +3,11 @@
 Read `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT_HISTORY.md`, and `docs/ROADMAP.md` before making nontrivial changes. Inspect the actual source before assuming documentation is current.
 
 ## Purpose
-Maintain a HACS-installable Home Assistant custom integration that ingests SPOT public XML feeds, archives positions in SQLite, exposes GPS device trackers, imports historical GPX, and bundles a Lovelace map card.
+Maintain a HACS-installable Home Assistant custom integration that ingests SPOT public XML feeds and Garmin inReach MapShare KML feeds, archives positions in SQLite, exposes GPS device trackers, imports historical GPX, and bundles a Lovelace map card.
 
 ## Invariants
-- Each **vehicle** is a separate Home Assistant config entry (version 2): one tracker, `data['device']` (a SPOT messenger ID) in the feed `data['feed_id']`, with unique ID `spot:<feed>:<messenger>`. A feed may hold several messengers, each its own vehicle entry; vehicles on one feed share a poll (`coordinator.FeedPoller`). Never assume one feed contains all devices. See `docs/adr/0001-one-config-entry-per-vehicle.md`.
+- Each **vehicle** is a separate Home Assistant config entry (version 2): one tracker, `data['device']` in the feed `data['feed_id']` of `data['provider']` (`spot`, the default when absent, or `garmin`). For SPOT these are a messenger ID and shared feed ID; for Garmin, an IMEI and a MapShare name. The unique ID is `<provider>:<feed>:<device>`. A feed may hold several devices, each its own vehicle entry; vehicles on one feed share a poll (`coordinator.FeedPoller`). Never assume one feed contains all devices. See `docs/adr/0001-one-config-entry-per-vehicle.md`.
+- Archive and tracker keys come from `vehicle.archive_feed`: SPOT uses the raw feed ID (unchanged since version 1); other providers use `<provider>:<feed>`, so feeds of different services never collide. See `docs/adr/0002-provider-prefixed-archive-feeds.md`.
 - Version 1 entries were whole feeds; `async_migrate_entry` splits them without moving history, keeping tracker unique IDs (`<feed>_<messenger>`), entity IDs and devices. Keep that migration working.
 - The SQLite archive (`spot_trace_history.sqlite` in HA config) persists independently of config entries, keyed by feed and messenger; never delete history on vehicle removal without an explicit, reviewed data-retention feature.
 - A vehicle's own settings are its entry's `options['name']` and optional `options['icon']`. `options['enabled'] = False` is only written by the migration, so a tracker that was switched off is created disabled. Standard entity/device area, labels, visibility, entity ID, and voice settings remain owned by HA registries; do not mirror them in config entry options.

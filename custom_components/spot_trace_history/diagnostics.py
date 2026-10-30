@@ -1,8 +1,9 @@
 """Config entry diagnostics for bug reports.
 
-The feed ID grants public read access to a shared feed's locations, so it is redacted alongside the
+The feed ID (a SPOT feed ID or Garmin MapShare name) grants read access to a shared feed's locations, so it is redacted alongside the
 password, coordinates, and the entry title and unique ID (which name the vehicle or embed its IDs).
-The messenger ID and vehicle name identify the owner's hardware, so they are redacted too.
+The device ID (messenger ID or IMEI) and vehicle name identify the owner's hardware, so they are
+redacted too.
 """
 from datetime import datetime, timezone
 
@@ -23,7 +24,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
                                                 coordinator.device) or {}
     last_exception = None
     if coordinator.last_exception:
-        # SpotAPIError messages never contain the password; SPOT's error text can echo the feed ID.
+        # API errors never contain the password; SPOT's error text can echo the feed ID.
         last_exception = str(coordinator.last_exception)
         for secret in (coordinator.feed, coordinator.device):
             last_exception = last_exception.replace(secret, REDACTED)

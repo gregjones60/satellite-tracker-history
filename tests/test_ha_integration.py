@@ -254,8 +254,16 @@ async def test_options_flow_names_the_vehicle_and_chooses_its_icon(hass, config_
     assert "icon" not in hass.states.get(tracker_id(hass, "feed-a", "vehicle")).attributes
 
 
-async def add_vehicle(hass, feed_id, device, **fields):
+async def start_flow(hass, service="spot"):
+    """Open the add-vehicle flow and choose the tracker service from its menu."""
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    assert result["type"] == "menu"
+    assert result["menu_options"] == ["spot", "garmin"]
+    return await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": service})
+
+
+async def add_vehicle(hass, feed_id, device, **fields):
+    result = await start_flow(hass)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"feed_id": feed_id})
     assert result["step_id"] == "vehicle", result
     return result, await hass.config_entries.flow.async_configure(result["flow_id"], {"device": device, **fields})
@@ -270,7 +278,7 @@ async def test_config_flow_adds_each_messenger_as_its_own_vehicle(hass, config_d
     assert choices["custom_value"] is True
     assert result["type"] == "create_entry"
     assert result["title"] == "Touring trailer"
-    assert result["data"] == {"feed_id": "feed-new", "password": "", "device": "trailer"}
+    assert result["data"] == {"provider": "spot", "feed_id": "feed-new", "password": "", "device": "trailer"}
     assert result["options"] == {"name": "Touring trailer", "icon": "mdi:caravan"}
     assert result["result"].unique_id == "spot:feed-new:trailer"
     await hass.async_block_till_done()
@@ -309,7 +317,7 @@ async def test_config_flow_requires_a_messenger(hass, config_dir, aioclient_mock
 
 async def test_config_flow_reports_unreadable_feed(hass, config_dir, aioclient_mock):
     aioclient_mock.get(FEED_URL.format("bad-feed"), status=500)
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await start_flow(hass)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"feed_id": "bad-feed"})
     assert result["type"] == "form"
     assert result["errors"] == {"base": "cannot_connect"}
@@ -327,14 +335,14 @@ def spot_error(code, text):
 
 async def test_config_flow_masks_password_and_trims_feed_id(hass, config_dir, aioclient_mock):
     aioclient_mock.get(FEED_URL.format("feed-new"), text=feed_xml(("vehicle", "Bluey", 100, -37.0, 145.0)))
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await start_flow(hass)
     password = next(v for k, v in result["data_schema"].schema.items() if k == "password")
     assert password.config["type"] == "password"
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"feed_id": "  feed-new\n", "password": "secret"})
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": "vehicle"})
     assert result["type"] == "create_entry"
-    assert result["data"] == {"feed_id": "feed-new", "password": "secret", "device": "vehicle"}
+    assert result["data"] == {"provider": "spot", "feed_id": "feed-new", "password": "secret", "device": "vehicle"}
 
 
 @pytest.mark.parametrize(("body", "errors", "placeholders"), [
@@ -343,7 +351,7 @@ async def test_config_flow_masks_password_and_trims_feed_id(hass, config_dir, ai
 ])
 async def test_config_flow_explains_spot_errors(hass, config_dir, aioclient_mock, body, errors, placeholders):
     aioclient_mock.get(FEED_URL.format("feed-x"), text=body)
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await start_flow(hass)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"feed_id": "feed-x", "password": "pw"})
     assert result["type"] == "form"
     assert result["errors"] == errors
@@ -546,3 +554,99 @@ async def test_form_descriptions_use_exactly_the_placeholders_the_flows_supply(h
 def test_unavailable_or_unrepresentable_time_has_a_display_fallback(timestamp):
     from custom_components.spot_trace_history.config_flow import SpotOptionsFlow
     assert SpotOptionsFlow._position_time(timestamp) == "—"
+
+
+GARMIN_URL = "https://share.garmin.com/Feed/Share/{}"
+GARMIN_SAMPLE = (__import__("pathlib").Path(__file__).parent / "fixtures/garmin_mapshare.kml").read_bytes()
+UTE, TRAILER = "300000000000001", "300000000000002"
+
+
+def garmin_entry(hass, mapshare="TestShare", device=UTE, password=""):
+    entry = MockConfigEntry(domain=DOMAIN, version=2, unique_id=f"garmin:{mapshare}:{device}", title=device,
+                            data={"provider": "garmin", "feed_id": mapshare, "password": password, "device": device})
+    entry.add_to_hass(hass)
+    return entry
+
+
+async def test_garmin_vehicle_is_set_up_from_a_mapshare_link(hass, config_dir, aioclient_mock):
+    aioclient_mock.get(GARMIN_URL.format("TestShare"), content=GARMIN_SAMPLE)
+    result = await start_flow(hass, "garmin")
+    assert result["step_id"] == "garmin"
+    password = next(v for k, v in result["data_schema"].schema.items() if k == "password")
+    assert password.config["type"] == "password"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {
+        "mapshare": "https://share.garmin.com/Feed/ShareLoader/TestShare", "password": "pw"})
+    assert result["step_id"] == "vehicle"
+    # The most recently heard device is offered first.
+    assert [o["value"] for o in result["data_schema"].schema["device"].config["options"]] == [TRAILER, UTE]
+    # Setup asks for the last 30 days, since a MapShare otherwise lists only the latest points.
+    assert "d1" in aioclient_mock.mock_calls[-1][1].query
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": UTE})
+    assert result["type"] == "create_entry"
+    assert (result["title"], result["result"].unique_id) == ("Test Ute", f"garmin:TestShare:{UTE}")
+    assert result["data"] == {"provider": "garmin", "feed_id": "TestShare", "password": "pw", "device": UTE}
+
+
+@pytest.mark.parametrize(("response", "mapshare", "errors"), [
+    ({"content": b""}, "TestShare", {"mapshare": "mapshare_not_found"}),
+    ({"status": 401}, "TestShare", {"base": "mapshare_rejected"}),
+    ({"text": "An error occured."}, "TestShare", {"base": "cannot_connect"}),
+    ({"content": GARMIN_SAMPLE}, "https://share.garmin.com/", {"mapshare": "mapshare_invalid"}),
+])
+async def test_garmin_setup_explains_refused_mapshares(hass, config_dir, aioclient_mock, response, mapshare, errors):
+    aioclient_mock.get(GARMIN_URL.format("TestShare"), **response)
+    result = await start_flow(hass, "garmin")
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"mapshare": mapshare})
+    assert result["type"] == "form"
+    assert result["errors"] == errors
+
+
+async def test_garmin_tracker_polls_archives_and_names_by_imei(hass, config_dir, aioclient_mock):
+    aioclient_mock.get(GARMIN_URL.format("TestShare"), content=GARMIN_SAMPLE)
+    entry = garmin_entry(hass)
+    await setup(hass, entry)
+    assert entry.runtime_data.feed == "garmin:TestShare"
+    state = hass.states.get(tracker_id(hass, "garmin:TestShare", UTE))
+    # The newest valid fix, not the later point without a GPS fix.
+    assert (state.attributes["latitude"], state.attributes["longitude"]) == (-37.6, 145.3)
+    assert state.attributes["imei"] == UTE
+    assert state.attributes["message_type"] == "MESSAGE"
+    assert state.attributes["last_message"] == "2026-10-29T21:15:30+00:00"
+    assert state.attributes["friendly_name"] == "Test Ute"
+    entity = er.async_get(hass).async_get(state.entity_id)
+    device = dr.async_get(hass).async_get(entity.device_id)
+    assert (device.manufacturer, device.serial_number) == ("Garmin", UTE)
+    archive = hass.data[DOMAIN]
+    assert {d["device"] for d in archive.list_devices("garmin:TestShare")} == {UTE, TRAILER}
+    assert archive.list_devices("TestShare") == []
+    # The next poll resumes from the newest archived fix.
+    entry.runtime_data.poller._fetched = None
+    await entry.runtime_data.async_refresh()
+    assert aioclient_mock.mock_calls[-1][1].query["d1"] == "2026-10-29T22:00:00Z"
+
+
+async def test_garmin_and_spot_feeds_with_the_same_name_stay_apart(hass, config_dir, aioclient_mock):
+    aioclient_mock.get(GARMIN_URL.format("shared-name"), content=GARMIN_SAMPLE)
+    aioclient_mock.get(FEED_URL.format("shared-name"), text=feed_xml((UTE, "SPOT Ute", 100, -30.0, 140.0)))
+    garmin, spot = garmin_entry(hass, "shared-name"), add_entry(hass, "shared-name", UTE)
+    await setup(hass, garmin)
+    assert spot.state is ConfigEntryState.LOADED
+    assert garmin.runtime_data.poller is not spot.runtime_data.poller
+    assert hass.states.get(tracker_id(hass, "shared-name", UTE)).attributes["latitude"] == -30.0
+    assert hass.states.get(tracker_id(hass, "garmin:shared-name", UTE)).attributes["latitude"] == -37.6
+
+
+async def test_garmin_diagnostics_redact_the_mapshare_and_imei(hass, config_dir, aioclient_mock, hass_client):
+    aioclient_mock.get(GARMIN_URL.format("SecretShare"), content=GARMIN_SAMPLE)
+    entry = garmin_entry(hass, "SecretShare", password="hunter2")
+    await setup(hass, entry)
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(GARMIN_URL.format("SecretShare"), status=500)
+    entry.runtime_data.poller._fetched = None
+    await entry.runtime_data.async_refresh()
+    assert await async_setup_component(hass, "diagnostics", {})
+    result = await get_diagnostics_for_config_entry(hass, hass_client, entry)
+    for secret in ("SecretShare", UTE, "hunter2", "-37.6", "Test Ute"):
+        assert secret not in str(result), secret
+    assert result["entry"]["data"]["provider"] == "garmin"
+    assert result["coordinator"]["last_exception"] == "Garmin MapShare request failed with HTTP 500"

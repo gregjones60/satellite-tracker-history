@@ -22,7 +22,9 @@ def module(monkeypatch):
     update.UpdateFailed = type('UpdateFailed', (Exception,), {})
     monkeypatch.setitem(sys.modules, update.__name__, update)
     import custom_components.spot_trace_history.api as api
-    monkeypatch.setattr(api, 'async_get_clientsession', lambda hass: None)
+    import custom_components.spot_trace_history.garmin as garmin
+    for client in (api, garmin):
+        monkeypatch.setattr(client, 'async_get_clientsession', lambda hass: None)
     path = Path(__file__).resolve().parents[1]/'custom_components/spot_trace_history/coordinator.py'
     spec = importlib.util.spec_from_file_location('custom_components.spot_trace_history.coordinator', path)
     loaded = importlib.util.module_from_spec(spec)
@@ -30,8 +32,9 @@ def module(monkeypatch):
     return loaded
 
 
-def entry(entry_id='entry-a', feed='feed-a', device='vehicle'):
-    return types.SimpleNamespace(entry_id=entry_id, data={'feed_id': feed, 'password': 'secret', 'device': device})
+def entry(entry_id='entry-a', feed='feed-a', device='vehicle', **data):
+    return types.SimpleNamespace(entry_id=entry_id,
+                                 data={'feed_id': feed, 'password': 'secret', 'device': device, **data})
 
 
 async def execute(fn, *args):
@@ -39,8 +42,12 @@ async def execute(fn, *args):
 
 
 class Archive:
-    def __init__(self):
+    def __init__(self, last=None):
         self.inserted = []
+        self.last = last
+
+    def latest_time(self, feed):
+        return self.last
 
     def insert(self, feed, points):
         self.inserted.append((feed, points))
@@ -55,7 +62,7 @@ def make_hass():
 
 def coordinator(module, error):
     result = module.SpotCoordinator(make_hass(), entry(), store=Archive())
-    result.poller.api = types.SimpleNamespace(page=AsyncMock(side_effect=error))
+    result.poller.api = types.SimpleNamespace(fetch=AsyncMock(side_effect=error))
     return result
 
 
@@ -73,12 +80,12 @@ async def test_each_vehicle_gets_only_its_own_position(module):
     trailer = module.SpotCoordinator(hass, entry('entry-b', device='trailer'), store)
     spare = module.SpotCoordinator(hass, entry('entry-c', device='spare'), store)
     assert vehicle.poller is trailer.poller
-    vehicle.poller.api = types.SimpleNamespace(page=AsyncMock(return_value=[]))
+    vehicle.poller.api = types.SimpleNamespace(fetch=AsyncMock(return_value=[]))
     assert await vehicle._async_update_data() == {'name': 'Bluey'}
     assert await trailer._async_update_data() == {'name': 'Camper'}
     assert await spare._async_update_data() is None
     # One fetch served all three vehicles.
-    assert vehicle.poller.api.page.await_count == 1
+    assert vehicle.poller.api.fetch.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -86,25 +93,48 @@ async def test_a_failed_fetch_is_retried_by_the_next_vehicle(module, monkeypatch
     hass, store = make_hass(), Archive()
     first = module.SpotCoordinator(hass, entry(), store)
     second = module.SpotCoordinator(hass, entry('entry-b', device='trailer'), store)
-    first.poller.api = types.SimpleNamespace(page=AsyncMock(side_effect=[SpotAPIError('HTTP 500'), []]))
+    first.poller.api = types.SimpleNamespace(fetch=AsyncMock(side_effect=[SpotAPIError('HTTP 500'), []]))
     with pytest.raises(module.UpdateFailed):
         await first._async_update_data()
     await second._async_update_data()
-    assert first.poller.api.page.await_count == 2
+    assert first.poller.api.fetch.await_count == 2
     # A stale fetch is repeated.
     now = module.time.monotonic()
     monkeypatch.setattr(module.time, 'monotonic', lambda: now + module.FRESH_SECONDS)
-    first.poller.api.page = AsyncMock(return_value=[])
+    first.poller.api.fetch = AsyncMock(return_value=[])
     await first._async_update_data()
-    assert first.poller.api.page.await_count == 1
+    assert first.poller.api.fetch.await_count == 1
 
 
 def test_pollers_are_shared_per_feed_and_password(module):
     hass = make_hass()
-    a = module.async_get_poller(hass, None, 'feed-a', 'pw')
-    assert module.async_get_poller(hass, None, 'feed-a', 'pw') is a
-    assert module.async_get_poller(hass, None, 'feed-a', 'other') is not a
-    assert module.async_get_poller(hass, None, 'feed-b', 'pw') is not a
+    poller = lambda **data: module.async_get_poller(hass, None, {'feed_id': 'feed-a', 'password': 'pw', **data})
+    a = poller()
+    assert poller() is a
+    assert poller(provider='spot') is a
+    assert poller(password='other') is not a
+    assert poller(feed_id='feed-b') is not a
+    # The same name on another service is a different feed.
+    garmin = poller(provider='garmin')
+    assert garmin is not a
+    assert (garmin.feed, type(garmin.api).__name__, type(a.api).__name__) == ('garmin:feed-a', 'GarminAPI', 'SpotAPI')
+
+
+@pytest.mark.asyncio
+async def test_polling_resumes_from_the_newest_archived_fix_or_backfills(module):
+    for last, expected in ((1_700_000_000, module.datetime.fromtimestamp(1_700_000_000, module.timezone.utc)),
+                           (None, None)):
+        hass = make_hass()
+        vehicle = module.SpotCoordinator(hass, entry(provider='garmin'), Archive(last))
+        vehicle.poller.api = types.SimpleNamespace(fetch=AsyncMock(return_value=[]))
+        before = module.datetime.now(module.timezone.utc)
+        await vehicle._async_update_data()
+        since = vehicle.poller.api.fetch.await_args.args[0]
+        if expected:
+            assert since == expected
+        else:
+            assert before - module.BACKFILL <= since <= module.datetime.now(module.timezone.utc) - module.BACKFILL
+        assert vehicle.feed == 'garmin:feed-a'
 
 
 @pytest.mark.asyncio
