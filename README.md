@@ -1,5 +1,5 @@
 <p>
-  <img src="branding/logo.png" alt="Satellite Tracker History" width="250">
+  <img src="branding/logo.png" alt="Satellite Tracker History">
 </p>
 
 # Satellite Tracker History v0.7.0 — SPOT and Garmin trackers + bundled card
