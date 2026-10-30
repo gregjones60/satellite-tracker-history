@@ -1,11 +1,11 @@
-"""Device trackers for each SPOT messenger."""
+"""The device tracker of each vehicle."""
 from datetime import datetime, timezone
 
 from homeassistant.components.device_tracker import SourceType, TrackerEntity
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_DEVICES, CONF_ENABLED, CONF_ICON, CONF_NAME, DOMAIN
+from .const import CONF_DEVICE, CONF_ENABLED, CONF_FEED_ID, CONF_ICON, CONF_NAME, DOMAIN
 
 # Updates come from the coordinator; entities never poll.
 PARALLEL_UPDATES = 0
@@ -15,30 +15,18 @@ def tracker_unique_id(feed, device):
     return f"{feed}_{device}"
 
 
-def device_settings(entry, device):
-    return entry.options.get(CONF_DEVICES, {}).get(device, {})
+def vehicle_unique_id(feed, device):
+    """The config entry's unique ID; the provider prefix leaves room for other tracker services."""
+    return f"spot:{feed}:{device}"
 
 
-def device_enabled(entry, device):
-    return device_settings(entry, device).get(CONF_ENABLED, True)
+def vehicle_name(entry, position=None):
+    """The vehicle's chosen name, else the name SPOT reports, else its messenger ID."""
+    return entry.options.get(CONF_NAME) or (position or {}).get("name") or entry.data[CONF_DEVICE]
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    coordinator = entry.runtime_data
-    known = set()
-
-    def add_devices():
-        new = {
-            device
-            for device in set(coordinator.data or {}) - known
-            if device_enabled(entry, device)
-        }
-        if new:
-            known.update(new)
-            async_add_entities([SpotTracker(coordinator, entry, device) for device in new])
-
-    add_devices()
-    entry.async_on_unload(coordinator.async_add_listener(add_devices))
+    async_add_entities([SpotTracker(entry.runtime_data, entry)])
 
 
 class SpotTracker(CoordinatorEntity, TrackerEntity):
@@ -47,16 +35,18 @@ class SpotTracker(CoordinatorEntity, TrackerEntity):
     _attr_has_entity_name = True
     _attr_name = None
 
-    def __init__(self, coordinator, entry, device):
+    def __init__(self, coordinator, entry):
         super().__init__(coordinator)
         self.entry = entry
-        self.device = device
-        self._attr_unique_id = tracker_unique_id(coordinator.feed, device)
+        self.device = entry.data[CONF_DEVICE]
+        self._attr_unique_id = tracker_unique_id(entry.data[CONF_FEED_ID], self.device)
+        # Applies only when the entity is first registered; trackers switched off before
+        # vehicles had their own entries are created disabled. Later changes belong to HA.
+        self._attr_entity_registry_enabled_default = entry.options.get(CONF_ENABLED, True)
 
-    def _device_name(self):
-        return device_settings(self.entry, self.device).get(CONF_NAME) or self.coordinator.data.get(self.device, {}).get(
-            "name", self.device
-        )
+    @property
+    def _position(self):
+        return self.coordinator.data or {}
 
     @property
     def source_type(self):
@@ -64,25 +54,25 @@ class SpotTracker(CoordinatorEntity, TrackerEntity):
 
     @property
     def icon(self):
-        return device_settings(self.entry, self.device).get(CONF_ICON) or None
+        return self.entry.options.get(CONF_ICON) or None
 
     @property
     def device_info(self):
-        """Associate each tracker with a native HA device for area/label settings."""
-        return DeviceInfo(identifiers={(DOMAIN, self._attr_unique_id)}, name=self._device_name(),
+        """Associate the tracker with a native HA device for area/label settings."""
+        return DeviceInfo(identifiers={(DOMAIN, self._attr_unique_id)}, name=vehicle_name(self.entry, self._position),
                           manufacturer='SPOT', serial_number=self.device)
 
     @property
     def latitude(self):
-        return self.coordinator.data.get(self.device, {}).get("lat")
+        return self._position.get("lat")
 
     @property
     def longitude(self):
-        return self.coordinator.data.get(self.device, {}).get("lon")
+        return self._position.get("lon")
 
     @property
     def extra_state_attributes(self):
-        p = self.coordinator.data.get(self.device, {})
+        p = self._position
         return {
             "last_spot_message": datetime.fromtimestamp(
                 p["time"], timezone.utc

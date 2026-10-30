@@ -2,16 +2,25 @@
   "config": {
     "step": {
       "user": {
-        "title": "SPOT Trace History",
-        "description": "Enter your SPOT public XML feed ID and optional feed password.",
+        "title": "Add a vehicle",
+        "description": "Each vehicle is one SPOT messenger. Enter the ID of the SPOT shared feed it reports to, and the feed password if the feed has one. Vehicles that share a feed are polled together.",
         "data": {
           "feed_id": "Feed ID",
           "password": "Feed password (optional)"
         }
       },
+      "vehicle": {
+        "title": "Choose the vehicle's tracker",
+        "description": "Feed ID: {feed_id}\n\nChoose this vehicle's messenger ({count} found in the feed and archive that are not set up yet), or type its messenger ID if the feed has been quiet. Add the feed again for each other messenger.\n\nLeave the name empty to use the name SPOT reports, and the icon empty for the default.",
+        "data": {
+          "device": "Messenger",
+          "name": "Vehicle name (optional)",
+          "icon": "Icon (optional)"
+        }
+      },
       "reconfigure": {
         "title": "Update feed password",
-        "description": "Feed ID: {feed_id}\n\nEnter the current password for this shared SPOT feed, or leave it empty if the feed has none. The feed ID cannot be changed because it identifies this feed's trackers and archived history.",
+        "description": "Feed ID: {feed_id}\n\nEnter the current password for this shared SPOT feed, or leave it empty if the feed has none. The feed and messenger cannot be changed because they identify this vehicle's tracker and archived history.",
         "data": {
           "password": "Feed password (optional)"
         }
@@ -20,41 +29,24 @@
     "error": {
       "cannot_connect": "Could not read the SPOT feed",
       "feed_not_found": "SPOT has no feed with this ID. Check the ID of your shared feed.",
-      "feed_rejected": "SPOT rejected the request: {spot_error}. Check the feed password."
+      "feed_rejected": "SPOT rejected the request: {spot_error}. Check the feed password.",
+      "no_messenger": "Choose or type a messenger ID"
     },
     "abort": {
-      "already_configured": "This feed is already configured",
+      "already_configured": "This vehicle is already configured",
       "reconfigure_successful": "The feed password was updated."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "SPOT Trace History options",
-        "menu_options": {
-          "manage_devices": "Manage devices"
-        }
-      },
-      "manage_devices": {
-        "title": "Manage devices",
-        "description": "Choose a SPOT device to edit.",
+        "title": "Vehicle settings",
+        "description": "Feed ID: {feed_id}\n\nMessenger ID: {device_id}\n\nStored positions: {message_count}\n\nFirst archived position: {first_position}\n\nLatest archived position: {latest_position}\n\nLatest coordinates (latitude, longitude): {coordinates}\n\nLeave the name empty to use {default_name}, and the icon empty for the default. To stop the tracker but keep collecting positions and map history, disable the tracker entity. For entity ID, area, labels, visibility and voice assistant settings, open the tracker under Settings → Devices & services → Entities.",
         "data": {
-          "device": "Device"
-        }
-      },
-      "device": {
-        "title": "Device settings",
-        "description": "Feed ID: {feed_id}\n\nMessenger ID: {device_id}\n\nStored positions: {message_count}\n\nFirst archived position: {first_position}\n\nLatest archived position: {latest_position}\n\nLatest coordinates (latitude, longitude): {coordinates}\n\nDisabling the tracker keeps collecting positions and preserves map history.\n\nChoose an icon here, or clear it to use the default. For entity ID, area, labels, visibility, and voice assistant settings, open the tracker under Settings → Devices & services → Entities. Home Assistant entity icon/name overrides take precedence over integration defaults.",
-        "data": {
-          "name": "Friendly name",
-          "enabled": "Enable device tracker",
+          "name": "Vehicle name (optional)",
           "icon": "Icon (optional)"
         }
       }
-    },
-    "abort": {
-      "no_devices": "No SPOT devices have been discovered for this feed yet.",
-      "device_not_found": "The selected SPOT device could not be found."
     }
   },
   "services": {
@@ -68,19 +60,19 @@
         },
         "feed_id": {
           "name": "SPOT feed ID",
-          "description": "Optional destination for all tracks. Omit to route tracks across configured feeds."
+          "description": "Optional: only import into vehicles on this SPOT feed."
         },
         "entry_id": {
           "name": "Integration entry ID",
-          "description": "Optional alternative to feed ID when importing into a specific configured feed."
+          "description": "Optional: the integration entry of the one vehicle to import into."
         },
         "device_mapping": {
           "name": "GPX track-to-device mapping",
-          "description": "Mapping from GPX track names to messenger IDs. Known IDs can automatically select their configured feeds."
+          "description": "Mapping from GPX track names to messenger IDs, selecting the vehicle for each track."
         },
         "feed_mapping": {
           "name": "GPX track-to-feed mapping",
-          "description": "Optional mapping from GPX track names to configured feed IDs, for unknown or ambiguous devices."
+          "description": "Optional mapping from GPX track names to SPOT feed IDs, for names shared by vehicles on different feeds."
         }
       }
     },
@@ -94,19 +86,19 @@
         },
         "feed_id": {
           "name": "SPOT feed ID",
-          "description": "Optional destination for every device. Omit for per-device routing across configured feeds."
+          "description": "Optional: only import into vehicles on this SPOT feed."
         },
         "entry_id": {
           "name": "Integration entry ID",
-          "description": "Optional alternative to feed ID for selecting one destination entry."
+          "description": "Optional: the integration entry of the one vehicle to import into."
         },
         "device_mapping": {
           "name": "App device-to-messenger mapping",
-          "description": "Map device names in the iOS database to XML messenger IDs. App database IDs are separate from messenger IDs."
+          "description": "Map device names in the iOS database to messenger IDs, selecting the vehicle for each. App database IDs are separate from messenger IDs."
         },
         "feed_mapping": {
           "name": "App device-to-feed mapping",
-          "description": "Map device names in the iOS database to configured feed IDs for unknown or ambiguous destinations."
+          "description": "Map device names in the iOS database to SPOT feed IDs, for names shared by vehicles on different feeds."
         }
       }
     }
@@ -114,6 +106,9 @@
   "exceptions": {
     "import_failed": {
       "message": "{error}"
+    },
+    "no_vehicle": {
+      "message": "This entry for SPOT feed {feed_id} has no messenger, because none had reported before the update that made each vehicle its own entry. Delete it and add the vehicle again."
     }
   }
 }

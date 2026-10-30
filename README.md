@@ -4,59 +4,77 @@
 
 # SPOT Trace History v0.5.17 — multi-feed prototype + bundled card
 
-Each SPOT XML feed is a **separate integration configuration entry**. To add another tracker, go to **Settings → Devices & services → Add integration → SPOT Trace History**, and enter that device's own feed ID (and password if needed). Repeat for each new device. A feed is not assumed to contain all devices.
-The password field is masked. To change a feed's password later, open the feed's
-**⋮** menu on the integration page and choose **Reconfigure**. The feed ID cannot be
-changed, because it identifies that feed's trackers and archived history.
+Each **vehicle** is a separate integration configuration entry: one tracker, which for SPOT is one messenger in a SPOT shared feed. To add a vehicle, go to **Settings → Devices & services → Add integration → SPOT Trace History**, enter the feed ID (and password if needed), then choose the vehicle's messenger. The list shows messengers the feed has reported recently or the archive holds; if the feed has been quiet, type the messenger ID. Add the same feed again for each other messenger on it. Vehicles that share a feed are polled together, with one request per feed.
 
-The custom map card automatically queries devices across **all** configured SPOT feed entries, so the vehicle and trailer can be shown together. Do **not** set `entry_id` on the card unless you intentionally want to show just one feed. Each feed can be removed independently through Home Assistant's integrations page. The SQLite archive is retained on removal.
+The password field is masked. To change a password later, open the vehicle's
+**⋮** menu on the integration page and choose **Reconfigure**. The feed and
+messenger cannot be changed, because they identify the vehicle's tracker and
+archived history.
+
+The custom map card automatically shows **all** configured vehicles together. Do **not** set `entry_id` on the card unless you intentionally want to show just one vehicle. Each vehicle can be removed independently through Home Assistant's integrations page. The SQLite archive is retained on removal.
+
+### Upgrading from feed entries
+
+Up to v0.5.17, each integration entry was a whole feed and held all its
+messengers. The first start after upgrading splits each feed entry into one
+entry per messenger: every messenger in the archive or the old device settings
+becomes a vehicle. Nothing else has to be set up again:
+
+- The tracker keeps its entity ID, device, area and labels, and its history and
+  trips are unchanged.
+- Names and icons from **Manage devices** become each vehicle's own settings.
+- A tracker that was switched off stays off as a disabled entity, and positions
+  are still collected and shown on the map.
+- A feed entry that never received any position has no messenger to keep, so it
+  shows an error asking you to delete it and add the vehicle again.
+
+Vehicles split this way include archive-only devices created by earlier GPX
+imports. Delete any you don't want; their history stays in the archive.
 
 ## Installation
 
-Copy `custom_components/spot_trace_history` to `/config/custom_components/spot_trace_history` and restart Home Assistant. Add one integration entry per XML feed. The integration automatically serves and registers its bundled card JavaScript; **no `/config/www` folder or manual dashboard resource is needed**. Refresh the browser cache after updating.
+Copy `custom_components/spot_trace_history` to `/config/custom_components/spot_trace_history` and restart Home Assistant. Add one integration entry per vehicle. The integration automatically serves and registers its bundled card JavaScript; **no `/config/www` folder or manual dashboard resource is needed**. Refresh the browser cache after updating.
 
 For HACS, publish this repository with `custom_components/spot_trace_history` at its root, add the GitHub repository URL to HACS as a **custom integration repository**, install, and restart Home Assistant. HACS installation and update do not automatically create a GitHub repository.
 
 The card asset is available at `/spot_trace_history/spot-trace-history-card.js?v=0.5.17` once Home Assistant has restarted. The version is read from the installed integration manifest. Home Assistant's frontend loads the bundled script automatically. If you previously registered `/local/spot-trace-history-card.js` manually, remove that old dashboard resource to avoid loading two card versions.
 
-## Manage devices
+## Vehicle settings
 
-Open **Settings → Devices & services → SPOT Trace History → Configure → Manage devices**
-for the feed you want to manage. Select a tracker to see its feed ID, messenger
-ID, stored position count, first/latest archived position times (UTC), and
-latest coordinates. These details come from the local archive, including GPX
-imports. They do not guarantee a fresh fix from the tracker.
+Open **Settings → Devices & services → SPOT Trace History**, choose the vehicle
+and click **Configure** to see its feed ID, messenger ID, stored position count,
+first/latest archived position times (UTC), and latest coordinates. These details
+come from the local archive, including GPX imports. They do not guarantee a
+fresh fix from the tracker.
 
-You can change its friendly name or disable its Home Assistant device tracker.
-The **Icon** picker accepts Material Design Icons such as `mdi:car-estate` or
-`mdi:caravan`. Clear it to restore the default icon. The map card shows the
-vehicle with the same icon. Each tracker is also
+You can name the vehicle and choose its icon. Leave the name empty to use the
+name SPOT reports. The **Icon** picker accepts Material Design Icons such as
+`mdi:car-estate` or `mdi:caravan`; clear it to restore the default icon. The map
+card shows the vehicle with the same name and icon. Each tracker is
 associated with a native Home Assistant device, with a stable identity across
 renames and integration reloads. The tracker takes its name from that device:
-the friendly name set here becomes the device name, and the device page shows
-the messenger ID as its serial number. A name you give the device on its own
-Home Assistant device page takes precedence.
+the vehicle name becomes the device name, and the device page shows the
+messenger ID as its serial number. A name you give the device on its own Home
+Assistant device page takes precedence.
 
 For the standard settings shown in Home Assistant's entity editor—entity ID,
 area, labels, enabled/visible flags, and voice assistant exposure—open the tracker
 under **Settings → Devices & services → Entities**, then open its settings.
 You can assign an area or labels on its native device page too. Native entity
 name/icon overrides take precedence over the integration's defaults; clear an
-override there if you want to use the value configured through Manage devices.
+override there if you want to use the vehicle's settings.
 These settings are managed by HA's registries, so they are not duplicated in
 the integration options. See [HA entity customization](https://www.home-assistant.io/docs/configuration/customizing-devices/).
 
-Disabling the tracker keeps collecting positions and preserves map history.
-A disabled tracker's leftover device can then be deleted from its device page
-(**⋮ → Delete**); its archived history is kept, and re-enabling the tracker
-recreates it. Devices with an enabled tracker cannot be deleted.
+To stop the tracker but keep collecting positions and map history, disable the
+tracker entity. To stop polling as well, disable the vehicle's integration entry,
+which also hides it from the map. Deleting the entry keeps its archived history,
+and adding the same feed and messenger again brings it back.
 
-For bug reports, use **Download diagnostics** on the feed's **⋮** menu. The file
-redacts the feed ID, password, coordinates, messenger IDs and device names. Each
-messenger appears only as `device_1`, `device_2`, ..., which links its archive
-summary (position counts and first/latest times) to its settings. The last update
-status is included.
-Devices with the same name are distinguished by messenger ID in the selector.
+For bug reports, use **Download diagnostics** on the vehicle's **⋮** menu. The
+file redacts the feed ID, password, coordinates, messenger ID and vehicle name.
+It includes the vehicle's archive summary (position count and first/latest
+times) and the last update status.
 This UI still needs validation in a live Home Assistant instance.
 
 ### Duplicate card script errors
@@ -86,14 +104,14 @@ devices:
     enabled: true
 ```
 
-The card uses XML messenger IDs when present, or GPX track names for archived-only devices. For unambiguous per-feed overrides, use a key in the form `<entry_id>:<messenger_id>`. The card provides a visibility checkbox for each device. New devices appear after their feed is configured and polled, and the card is reloaded.
+The card's `devices` keys may be a vehicle's messenger ID, its name, or, to be unambiguous, `<entry_id>:<messenger_id>`. The card provides a visibility checkbox for each vehicle. A new vehicle appears once it has archived positions and the card is reloaded.
 
 The map uses [Leaflet](https://leafletjs.com) 1.9.4, which is bundled with the
 integration and needs no internet access beyond the map tiles. It has **+ / −
 zoom buttons**, smooth mouse-wheel, trackpad and pinch zoom, drag-to-pan, and
 **Fit routes**. Each vehicle's latest position, or its position on the trip
 timeline, is marked in its route colour with the icon chosen in the
-integration's device options. A card `icon` setting overrides that icon, and a
+vehicle's integration settings. A card `icon` setting overrides that icon, and a
 vehicle without an icon is shown as a dot.
 
 The card has no title of its own, so name it with your dashboard (for example
@@ -217,9 +235,9 @@ data:
     Bluey: YOUR_VEHICLE_MESSENGER_ID
 ```
 
-Repeat with the trailer's GPX and feed ID. The optional `device_mapping` maps the GPX track name to the messenger ID used by the XML feed. Without this mapping, GPX tracks that don't match an XML messenger name may appear as a separate archived-only device. You may use `entry_id` instead of `feed_id` to select the destination.
+Repeat with the trailer's GPX. The optional `device_mapping` maps the GPX track name to the messenger ID of the vehicle it belongs to. To import a single-track GPX into one vehicle without a mapping, pass that vehicle's `entry_id` instead. A file with several tracks always needs each track to identify its vehicle, so two trackers' history is never merged into one vehicle.
 
-### Combined exports with multiple feeds
+### Combined exports with several vehicles
 
 You can import the SPOT web app's **download all** GPX export in one action.
 Omit the top-level `feed_id` and `entry_id` to route tracks individually:
@@ -233,10 +251,9 @@ data:
     Ultimate: "YOUR_TRAILER_MESSENGER_ID"
 ```
 
-The importer matches each messenger ID to the configured feed whose archive
-already contains that device. Feed IDs cannot be calculated from messenger IDs.
-If an ID has not been discovered or appears in multiple feeds, add an explicit
-GPX track-to-feed mapping:
+The importer sends each track to the configured vehicle with that messenger ID.
+If the same messenger ID is configured on two feeds, add an explicit GPX
+track-to-feed mapping:
 
 ```yaml
 action: spot_trace_history.import_gpx
@@ -250,13 +267,14 @@ data:
     Ultimate: "YOUR_TRAILER_FEED_ID"
 ```
 
-Both feeds must already be configured in Home Assistant. In the action UI, enter
-`feed_mapping` as an object, just like `device_mapping`. Without explicit device
-mapping, unique archived device names can also select a feed. Unknown or
+Both vehicles must already be configured in Home Assistant. In the action UI,
+enter `feed_mapping` as an object, just like `device_mapping`. Without explicit
+device mapping, a track name matching a vehicle's archived SPOT name or
+messenger ID selects that vehicle, and a feed with only one vehicle takes a track
+it does not recognise if that track is the only one going to it. Unknown or
 ambiguous destinations cause an error before any tracks are imported. Each
-track is archived only in its destination feed; repeated imports deduplicate
-existing fixes. Existing explicit `feed_id`/`entry_id` imports still assign the
-whole file to one feed.
+track is archived only for its destination vehicle; repeated imports deduplicate
+existing fixes. A top-level `feed_id` limits the import to that feed's vehicles.
 
 ### GPX track-to-device mapping format
 
@@ -279,17 +297,11 @@ If the mapping field's object editor expects JSON, enter only the mapping:
 ```
 
 Track names must match the GPX `<trk><name>` text, including case; surrounding
-whitespace is trimmed during import. Find messenger IDs under
-**Configure → Manage devices**. The mapping applies only to the selected
-destination feed when `feed_id` or `entry_id` is specified. Omit those fields
-for combined exports and use `feed_mapping` when automatic routing is ambiguous.
-Without an explicit mapping, the importer tries archived device names, then
-uses the GPX track name as the device ID. Friendly-name overrides in Manage
-devices are separate from those archived names.
-
-**Important:** Import a combined export once using per-track routing. Do not
-import the whole file separately into both feeds with top-level `feed_id` values;
-that would assign all its tracks to each selected feed.
+whitespace is trimmed during import. Find each vehicle's messenger ID under its
+**Configure** dialog. Use `feed_mapping` when automatic routing is ambiguous.
+Without an explicit mapping, the importer matches archived SPOT names and
+messenger IDs; vehicle names set in the integration are separate from those
+archived names.
 
 ## Import the SPOT iOS database
 
@@ -311,9 +323,9 @@ data:
 
 Mapping keys are the app's device names, with surrounding whitespace trimmed.
 The app database's numeric device IDs are separate from XML messenger IDs.
-Both feeds must already be configured. Like GPX imports, you can omit
+Both vehicles must already be configured. Like GPX imports, you can omit
 `feed_mapping` when the mapped messenger IDs or archived names identify exactly
-one feed. `feed_id` or `entry_id` instead assigns all records to one destination.
+one vehicle, and `entry_id` imports a single-device database into one vehicle.
 The object fields accept YAML or JSON mappings as shown in the GPX section.
 
 The importer reads `devices`, `messages`, and `message_types` from the observed
@@ -341,7 +353,7 @@ still needs validation.
 
 ## Limitations
 
-Experimental, not live-tested. Latest 50 XML messages polled per feed; complete XML pagination is not implemented. The historical website export must be imported manually. Card queries are limited to 366 days and 50,000 points per device. Back up `/config/spot_trace_history.sqlite`. All map tiles require internet connectivity and are served by OpenStreetMap.
+Experimental, not live-tested. Latest 50 XML messages polled per feed, shared by the vehicles on it; complete XML pagination is not implemented. The historical website export must be imported manually. Card queries are limited to 366 days and 50,000 points per device. Back up `/config/spot_trace_history.sqlite`. All map tiles require internet connectivity and are served by OpenStreetMap.
 
 ## Release notes 0.5.0
 

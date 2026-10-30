@@ -30,26 +30,81 @@ def module(monkeypatch):
     return loaded
 
 
-def entry(entry_id='entry-a', feed='feed-a'):
-    return types.SimpleNamespace(entry_id=entry_id, data={'feed_id': feed, 'password': 'secret'})
+def entry(entry_id='entry-a', feed='feed-a', device='vehicle'):
+    return types.SimpleNamespace(entry_id=entry_id, data={'feed_id': feed, 'password': 'secret', 'device': device})
 
 
 async def execute(fn, *args):
     return fn(*args)
 
 
+class Archive:
+    def __init__(self):
+        self.inserted = []
+
+    def insert(self, feed, points):
+        self.inserted.append((feed, points))
+
+    def latest(self, feed):
+        return {'vehicle': {'name': 'Bluey'}, 'trailer': {'name': 'Camper'}}
+
+
+def make_hass():
+    return types.SimpleNamespace(async_add_executor_job=execute, data={})
+
+
 def coordinator(module, error):
-    hass = types.SimpleNamespace(async_add_executor_job=execute)
-    result = module.SpotCoordinator(hass, entry(), store=None)
-    result.api = types.SimpleNamespace(page=AsyncMock(side_effect=error))
+    result = module.SpotCoordinator(make_hass(), entry(), store=Archive())
+    result.poller.api = types.SimpleNamespace(page=AsyncMock(side_effect=error))
     return result
 
 
 def test_coordinator_is_bound_to_its_config_entry(module):
     owner = entry()
-    result = module.SpotCoordinator(types.SimpleNamespace(), owner, store=None)
+    result = module.SpotCoordinator(make_hass(), owner, store=None)
     assert result.init_kwargs['config_entry'] is owner
-    assert result.feed == 'feed-a'
+    assert (result.feed, result.device) == ('feed-a', 'vehicle')
+
+
+@pytest.mark.asyncio
+async def test_each_vehicle_gets_only_its_own_position(module):
+    hass, store = make_hass(), Archive()
+    vehicle = module.SpotCoordinator(hass, entry(), store)
+    trailer = module.SpotCoordinator(hass, entry('entry-b', device='trailer'), store)
+    spare = module.SpotCoordinator(hass, entry('entry-c', device='spare'), store)
+    assert vehicle.poller is trailer.poller
+    vehicle.poller.api = types.SimpleNamespace(page=AsyncMock(return_value=[]))
+    assert await vehicle._async_update_data() == {'name': 'Bluey'}
+    assert await trailer._async_update_data() == {'name': 'Camper'}
+    assert await spare._async_update_data() is None
+    # One fetch served all three vehicles.
+    assert vehicle.poller.api.page.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_a_failed_fetch_is_retried_by_the_next_vehicle(module, monkeypatch):
+    hass, store = make_hass(), Archive()
+    first = module.SpotCoordinator(hass, entry(), store)
+    second = module.SpotCoordinator(hass, entry('entry-b', device='trailer'), store)
+    first.poller.api = types.SimpleNamespace(page=AsyncMock(side_effect=[SpotAPIError('HTTP 500'), []]))
+    with pytest.raises(module.UpdateFailed):
+        await first._async_update_data()
+    await second._async_update_data()
+    assert first.poller.api.page.await_count == 2
+    # A stale fetch is repeated.
+    now = module.time.monotonic()
+    monkeypatch.setattr(module.time, 'monotonic', lambda: now + module.FRESH_SECONDS)
+    first.poller.api.page = AsyncMock(return_value=[])
+    await first._async_update_data()
+    assert first.poller.api.page.await_count == 1
+
+
+def test_pollers_are_shared_per_feed_and_password(module):
+    hass = make_hass()
+    a = module.async_get_poller(hass, None, 'feed-a', 'pw')
+    assert module.async_get_poller(hass, None, 'feed-a', 'pw') is a
+    assert module.async_get_poller(hass, None, 'feed-a', 'other') is not a
+    assert module.async_get_poller(hass, None, 'feed-b', 'pw') is not a
 
 
 @pytest.mark.asyncio

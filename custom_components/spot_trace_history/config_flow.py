@@ -2,15 +2,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
-
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .api import FEED_NOT_FOUND, SpotAPI, SpotFeedError
-from .const import CONF_DEVICES, CONF_ENABLED, CONF_ICON, CONF_NAME, DOMAIN
+from .const import CONF_DEVICE, CONF_FEED_ID, CONF_ICON, CONF_NAME, CONF_PASSWORD, DOMAIN
+from .device_tracker import vehicle_unique_id
 from .store import async_get_store
 
 
@@ -18,67 +17,127 @@ def _password_selector():
     return selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD))
 
 
-class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Configure a SPOT feed."""
+def _clean_options(user_input):
+    """Keep only the name and icon the user filled in; empty means use the default."""
+    return {key: user_input[key].strip() for key in (CONF_NAME, CONF_ICON) if user_input.get(key, "").strip()}
 
-    VERSION = 1
+
+class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Configure one vehicle: a tracker in a SPOT feed."""
+
+    # Version 1 entries were whole feeds; __init__.async_migrate_entry splits them into vehicles.
+    VERSION = 2
+
+    def __init__(self) -> None:
+        self._feed: dict[str, str] = {}
+        self._messengers: dict[str, str] = {}
 
     async def _async_validate(self, feed_id, password):
-        """Make one test request; return (errors, description placeholders)."""
+        """Make one test request; return (errors, description placeholders, positions)."""
         try:
-            await SpotAPI(self.hass, feed_id, password).page()
+            points = await SpotAPI(self.hass, feed_id, password).page()
         except SpotFeedError as exc:
             if exc.code == FEED_NOT_FOUND:
-                return {"feed_id": "feed_not_found"}, {}
+                return {CONF_FEED_ID: "feed_not_found"}, {}, []
             # Includes rejected passwords; SPOT's own explanation is the most useful detail.
-            return {"base": "feed_rejected"}, {"spot_error": exc.text}
+            return {"base": "feed_rejected"}, {"spot_error": exc.text}, []
         except Exception:  # noqa: BLE001 - network and parse failures are presented as a flow error
-            return {"base": "cannot_connect"}, {}
-        return {}, {}
+            return {"base": "cannot_connect"}, {}, []
+        return {}, {}, points
 
     async def async_step_user(self, user_input=None):
         errors, placeholders = {}, {}
         if user_input is not None:
-            feed_id = user_input["feed_id"].strip()
-            password = user_input.get("password", "")
+            feed_id = user_input[CONF_FEED_ID].strip()
+            password = user_input.get(CONF_PASSWORD, "")
             if not feed_id:
-                errors["feed_id"] = "feed_not_found"
+                errors[CONF_FEED_ID] = "feed_not_found"
             else:
-                await self.async_set_unique_id(feed_id)
-                self._abort_if_unique_id_configured()
-                errors, placeholders = await self._async_validate(feed_id, password)
+                errors, placeholders, points = await self._async_validate(feed_id, password)
             if not errors:
-                return self.async_create_entry(
-                    title="SPOT " + feed_id[-6:], data={"feed_id": feed_id, "password": password}
-                )
+                self._feed = {CONF_FEED_ID: feed_id, CONF_PASSWORD: password}
+                # Offer messengers heard from recently or archived earlier; SPOT lists newest first,
+                # so reading it oldest first lets each messenger's newest name win.
+                store = async_get_store(self.hass)
+                archived = await self.hass.async_add_executor_job(store.list_devices, feed_id)
+                self._messengers = {point["device"]: point["name"] for point in reversed(points)}
+                for device in archived:
+                    self._messengers.setdefault(device["device"], device["name"])
+                return await self.async_step_vehicle()
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(
                 vol.Schema(
                     {
-                        vol.Required("feed_id"): str,
-                        vol.Optional("password", default=""): _password_selector(),
+                        vol.Required(CONF_FEED_ID): str,
+                        vol.Optional(CONF_PASSWORD, default=""): _password_selector(),
                     }
                 ),
-                {"feed_id": user_input["feed_id"]} if user_input else {},
+                {CONF_FEED_ID: user_input[CONF_FEED_ID]} if user_input else {},
             ),
             errors=errors,
             description_placeholders=placeholders,
         )
 
+    async def async_step_vehicle(self, user_input=None):
+        """Choose the messenger that is this vehicle's tracker, and optionally name it."""
+        feed_id = self._feed[CONF_FEED_ID]
+        configured = {entry.data.get(CONF_DEVICE) for entry in self._async_current_entries(include_ignore=False)
+                      if entry.data.get(CONF_FEED_ID) == feed_id}
+        available = {device: name for device, name in self._messengers.items() if device not in configured}
+        errors = {}
+        if user_input is not None:
+            device = user_input[CONF_DEVICE].strip()
+            if not device:
+                errors[CONF_DEVICE] = "no_messenger"
+            else:
+                await self.async_set_unique_id(vehicle_unique_id(feed_id, device))
+                self._abort_if_unique_id_configured()
+                options = _clean_options(user_input)
+                return self.async_create_entry(
+                    title=options.get(CONF_NAME) or self._messengers.get(device) or device,
+                    data={**self._feed, CONF_DEVICE: device}, options=options,
+                )
+        choices = [selector.SelectOptionDict(value=device, label=f"{name} [{device}]" if name != device else device)
+                   for device, name in available.items()]
+        return self.async_show_form(
+            step_id="vehicle",
+            data_schema=vol.Schema(
+                {
+                    # A quiet feed lists nothing, so the messenger ID can also be typed.
+                    vol.Required(CONF_DEVICE): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=choices, custom_value=True,
+                                                      mode=selector.SelectSelectorMode.DROPDOWN)
+                    ),
+                    vol.Optional(CONF_NAME, default=""): str,
+                    vol.Optional(CONF_ICON, default=""): selector.IconSelector(),
+                }
+            ),
+            errors=errors,
+            description_placeholders={"feed_id": feed_id, "count": str(len(available))},
+        )
+
+    async def async_step_import(self, import_data):
+        """Create a vehicle split from a version 1 feed entry during migration."""
+        feed_id, device = import_data["data"][CONF_FEED_ID], import_data["data"][CONF_DEVICE]
+        await self.async_set_unique_id(vehicle_unique_id(feed_id, device))
+        self._abort_if_unique_id_configured()
+        return self.async_create_entry(title=import_data["title"], data=import_data["data"],
+                                       options=import_data["options"])
+
     async def async_step_reconfigure(self, user_input=None):
-        """Change the feed password; the feed ID keys the archive and trackers, so it is fixed."""
+        """Change the feed password; the feed and messenger key the archive and tracker, so they are fixed."""
         entry = self._get_reconfigure_entry()
-        feed_id = entry.data["feed_id"]
+        feed_id = entry.data[CONF_FEED_ID]
         errors, placeholders = {}, {}
         if user_input is not None:
-            password = user_input.get("password", "")
-            errors, placeholders = await self._async_validate(feed_id, password)
+            password = user_input.get(CONF_PASSWORD, "")
+            errors, placeholders, _ = await self._async_validate(feed_id, password)
             if not errors:
-                return self.async_update_reload_and_abort(entry, data_updates={"password": password})
+                return self.async_update_reload_and_abort(entry, data_updates={CONF_PASSWORD: password})
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=vol.Schema({vol.Optional("password", default=""): _password_selector()}),
+            data_schema=vol.Schema({vol.Optional(CONF_PASSWORD, default=""): _password_selector()}),
             errors=errors,
             description_placeholders={"feed_id": feed_id, **placeholders},
         )
@@ -91,21 +150,7 @@ class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class SpotOptionsFlow(config_entries.OptionsFlow):
-    """Manage devices discovered in a SPOT feed."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._selected_device: str | None = None
-        self._devices: list[dict[str, Any]] = []
-
-    async def _async_load_devices(self) -> list[dict[str, Any]]:
-        # Read the archive directly so devices remain manageable while the feed is unloaded.
-        store = async_get_store(self.hass)
-        feed = self.config_entry.data["feed_id"]
-        devices = await self.hass.async_add_executor_job(store.list_devices, feed)
-        latest = await self.hass.async_add_executor_job(store.latest, feed)
-        return [{**device, "lat": latest.get(device["device"], {}).get("lat"),
-                 "lon": latest.get(device["device"], {}).get("lon")} for device in devices]
+    """Name a vehicle and choose its icon."""
 
     @staticmethod
     def _position_time(timestamp) -> str:
@@ -117,109 +162,40 @@ class SpotOptionsFlow(config_entries.OptionsFlow):
         except (ValueError, OverflowError, OSError):
             return "—"
 
-    def _device_settings(self) -> dict[str, dict[str, Any]]:
-        return dict(self.config_entry.options.get(CONF_DEVICES, {}))
-
     async def async_step_init(self, user_input=None):
-        """Show the device-management landing page."""
-        return self.async_show_menu(
+        entry = self.config_entry
+        feed_id, device = entry.data[CONF_FEED_ID], entry.data[CONF_DEVICE]
+        # Read the archive directly so the vehicle stays manageable while its entry is unloaded.
+        store = async_get_store(self.hass)
+        summary = await self.hass.async_add_executor_job(store.device_summary, feed_id, device) or {}
+        latest = (await self.hass.async_add_executor_job(store.latest, feed_id)).get(device, {})
+        default_name = summary.get("name") or device
+        if user_input is not None:
+            options = {**{k: v for k, v in entry.options.items() if k not in (CONF_NAME, CONF_ICON)},
+                       **_clean_options(user_input)}
+            self.hass.config_entries.async_update_entry(entry, title=options.get(CONF_NAME) or default_name)
+            return self.async_create_entry(title="", data=options)
+        return self.async_show_form(
             step_id="init",
-            menu_options=["manage_devices"],
-        )
-
-    async def async_step_manage_devices(self, user_input=None):
-        """Choose a discovered device to manage."""
-        self._devices = await self._async_load_devices()
-        if not self._devices:
-            return self.async_abort(reason="no_devices")
-
-        settings = self._device_settings()
-        options = []
-        for device in self._devices:
-            device_id = device["device"]
-            configured = settings.get(device_id, {})
-            display_name = configured.get(CONF_NAME) or device.get("name") or device_id
-            state = "enabled" if configured.get(CONF_ENABLED, True) else "disabled"
-            options.append(
-                selector.SelectOptionDict(
-                    value=device_id,
-                    label=f"{display_name} [{device_id}] ({state})",
-                )
-            )
-
-        if user_input is not None:
-            self._selected_device = user_input["device"]
-            return await self.async_step_device()
-
-        return self.async_show_form(
-            step_id="manage_devices",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("device"): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=options,
-                            mode=selector.SelectSelectorMode.DROPDOWN,
-                        )
-                    )
-                }
-            ),
-        )
-
-    async def async_step_device(self, user_input=None):
-        """Edit settings for one SPOT device."""
-        if self._selected_device is None:
-            return await self.async_step_manage_devices()
-
-        if not self._devices:
-            self._devices = await self._async_load_devices()
-
-        device = next(
-            (item for item in self._devices if item["device"] == self._selected_device),
-            None,
-        )
-        if device is None:
-            return self.async_abort(reason="device_not_found")
-
-        settings = self._device_settings()
-        current = settings.get(self._selected_device, {})
-        default_name = current.get(CONF_NAME) or device.get("name") or self._selected_device
-        default_enabled = current.get(CONF_ENABLED, True)
-
-        if user_input is not None:
-            name = user_input[CONF_NAME].strip()
-            settings[self._selected_device] = {
-                **current,
-                CONF_NAME: name,
-                CONF_ENABLED: user_input[CONF_ENABLED],
-            }
-            if CONF_ICON in user_input:
-                icon = user_input[CONF_ICON].strip()
-                if icon:
-                    settings[self._selected_device][CONF_ICON] = icon
-                else:
-                    settings[self._selected_device].pop(CONF_ICON, None)
-            new_options = dict(self.config_entry.options)
-            new_options[CONF_DEVICES] = settings
-            return self.async_create_entry(title="", data=new_options)
-
-        return self.async_show_form(
-            step_id="device",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_NAME, default=default_name): str,
-                    vol.Required(CONF_ENABLED, default=default_enabled): bool,
-                    vol.Optional(CONF_ICON, default=current.get(CONF_ICON, '')): selector.IconSelector(),
-                }
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Optional(CONF_NAME, default=""): str,
+                        vol.Optional(CONF_ICON, default=""): selector.IconSelector(),
+                    }
+                ),
+                {CONF_NAME: entry.options.get(CONF_NAME, ""), CONF_ICON: entry.options.get(CONF_ICON, "")},
             ),
             description_placeholders={
-                "feed_id": self.config_entry.data["feed_id"],
-                "device_id": self._selected_device,
-                "message_count": str(device.get("count", 0)),
-                "first_position": self._position_time(device.get("first")),
-                "latest_position": self._position_time(device.get("last")),
+                "feed_id": feed_id,
+                "device_id": device,
+                "default_name": default_name,
+                "message_count": str(summary.get("count", 0)),
+                "first_position": self._position_time(summary.get("first")),
+                "latest_position": self._position_time(summary.get("last")),
                 "coordinates": (
-                    f"{device['lat']:.6f}, {device['lon']:.6f}"
-                    if device.get("lat") is not None and device.get("lon") is not None
+                    f"{latest['lat']:.6f}, {latest['lon']:.6f}"
+                    if latest.get("lat") is not None and latest.get("lon") is not None
                     else "—"
                 ),
             },

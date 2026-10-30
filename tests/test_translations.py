@@ -29,21 +29,21 @@ def test_every_service_and_field_has_text_and_an_icon():
 
 def test_flow_steps_errors_and_aborts_are_translated():
     source = (ROOT / "config_flow.py").read_text()
-    for section in ("config", "options"):
-        keys = STRINGS[section]
-        used_steps = set(re.findall(r'step_id="(\w+)"', source))
-        used_errors = set(re.findall(r'"(?:base|feed_id)"\]? ?[:=] ?"(\w+)"', source))
-        used_aborts = set(re.findall(r'reason="(\w+)"', source))
-        if section == "config":
-            assert {"user", "reconfigure"} <= set(keys["step"]) & used_steps
-            assert used_errors <= set(keys["error"])
-            assert {"already_configured", "reconfigure_successful"} <= set(keys["abort"])
-        else:
-            assert {"init", "manage_devices", "device"} <= set(keys["step"]) & used_steps
-            assert used_aborts <= set(keys["abort"])
-    assert used_errors == {"cannot_connect", "feed_not_found", "feed_rejected"}
+    used_steps = set(re.findall(r'step_id="(\w+)"', source))
+    # Error keys are written against "base" or a field constant such as CONF_FEED_ID.
+    used_errors = set(re.findall(r'(?:"base"|CONF_\w+)\]? ?[:=] ?"(\w+)"', source))
+    used_aborts = set(re.findall(r'reason="(\w+)"', source))
+    assert used_steps == {"user", "vehicle", "reconfigure", "init"}
+    assert {"user", "vehicle", "reconfigure"} <= set(STRINGS["config"]["step"])
+    assert set(STRINGS["options"]["step"]) == {"init"}
+    assert used_errors == {"cannot_connect", "feed_not_found", "feed_rejected", "no_messenger"}
+    assert used_errors <= set(STRINGS["config"]["error"])
+    assert used_aborts <= set(STRINGS["config"]["abort"])
+    assert {"already_configured", "reconfigure_successful"} <= set(STRINGS["config"]["abort"])
 
 
-def test_exception_keys_used_by_actions_are_translated():
-    source = (ROOT / "import_actions.py").read_text()
-    assert set(re.findall(r"translation_key='(\w+)'", source)) <= set(STRINGS["exceptions"])
+def test_exception_keys_are_translated():
+    for module in ("import_actions.py", "__init__.py"):
+        source = (ROOT / module).read_text()
+        keys = set(re.findall(r"translation_key='(\w+)'", source))
+        assert keys and keys <= set(STRINGS["exceptions"]), module
