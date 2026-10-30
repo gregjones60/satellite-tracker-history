@@ -73,7 +73,6 @@ manually copied script may still throw this error until its resource is removed.
 
 ```yaml
 type: custom:spot-trace-history-card
-title: Vehicle and camper trailer
 days: 30
 devices:
   Bluey:
@@ -95,8 +94,13 @@ zoom buttons**, smooth mouse-wheel, trackpad and pinch zoom, drag-to-pan, and
 **Fit routes**. Each vehicle's latest position, or its position on the trip
 timeline, is marked in its route colour with the icon chosen in the
 integration's device options. A card `icon` setting overrides that icon, and a
-vehicle without an icon is shown as a dot. The card fills its parent's width and available height, with the map
-using the space below the controls. When the dashboard provides no fixed parent
+vehicle without an icon is shown as a dot.
+
+The card has no title of its own, so name it with your dashboard (for example
+a heading card or the view title); a `title` option is ignored. Its filters
+(year, dates, trip, buttons and vehicle checkboxes) share one row, wrapping
+onto more rows only on narrow screens. The card fills its parent's width and
+available height, with the map using the space below the filters. When the dashboard provides no fixed parent
 height, the map uses a 420px fallback basis. Its minimum map height is 200px.
 For a full-width view, place this card as the only card in a
 [Panel view](https://www.home-assistant.io/dashboards/panel/). Full-height sizing
@@ -156,7 +160,10 @@ remains necessary.
 
 ### Explore a trip timeline
 
-Select a saved trip, then enable **Explore trip timeline** above the map. Drag
+Select a saved trip, then click **Timeline**. The timeline opens as a panel
+floating over the top-right of the map, so the map keeps its size; close it with
+**×**, **Escape** or **Timeline** again. Closing the panel does not stop
+playback. Enable **Explore trip timeline** in the panel, then drag
 the **Time** slider (or use its keyboard arrow keys) to move vehicle markers to
 their last recorded fix at or before that time. The full routes remain visible
 for context. Vehicles with no fix yet in the loaded period have no marker.
@@ -171,8 +178,8 @@ so you can inspect a particular moment. Hiding the browser tab or leaving the
 dashboard also pauses it; returning does not automatically resume.
 
 Turn the timeline off to restore end-of-route markers. Loading different dates,
-trips, or visible vehicles resets timeline mode; leaving the trip filter hides
-it. Playback moves markers without redrawing full routes on each tick and does
+trips, or visible vehicles resets timeline mode; leaving the trip filter closes
+the panel and disables **Timeline**. Playback moves markers without redrawing full routes on each tick and does
 not make additional history requests. It uses loaded history and its query limits,
 so a vehicle reaching 50,000 points is flagged as potentially incomplete.
 
@@ -351,7 +358,6 @@ The card accepts `tile_url` and `tile_attribution` options. For example, with a 
 
 ```yaml
 type: custom:spot-trace-history-card
-title: SPOT History
 tile_url: "https://your-authorized-tile-server.example/{z}/{x}/{y}.png"
 tile_attribution: "© OpenStreetMap contributors, tiles © Your Provider"
 ```

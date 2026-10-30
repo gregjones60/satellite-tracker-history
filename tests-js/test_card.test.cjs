@@ -62,11 +62,12 @@ function tripCard() {
   c.context.document={hidden:false,addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name),createElement:()=>({style:{},children:[],append(...children){this.children.push(...children)}}),createTextNode:text=>({textContent:text})};
   vm.runInContext(src,c.context);
   const card=new (c.registered.get('spot-trace-history-card'))();
-  const nodes=new Map();
+  const nodes=new Map();let focused=null;
   const node=selector=>{
     if(!nodes.has(selector)) nodes.set(selector,{
-      value:'', clientWidth:0, clientHeight:0, children:[],
-      addEventListener(){},replaceChildren(){this.children=[]},append(child){this.children.push(child)},
+      value:'', clientWidth:0, clientHeight:0, children:[], attrs:{}, listeners:{},
+      addEventListener(name,fn){this.listeners[name]=fn},replaceChildren(){this.children=[]},append(child){this.children.push(child)},
+      setAttribute(name,value){this.attrs[name]=value},focus(){focused=selector},
       showModal(){this.open=true},close(){this.open=false},
     });
     return nodes.get(selector);
@@ -75,7 +76,7 @@ function tripCard() {
   card.setConfig({type:'custom:spot-trace-history-card'});
   card.fit=()=>{};card.draw=()=>{};
   card.allDevices=[{entry_id:'feed-a',feed_id:'feed-a-id',device:'vehicle',name:'Vehicle'},{entry_id:'feed-b',feed_id:'feed-b-id',device:'trailer',name:'Trailer'}];
-  return {card,node,window:c.context.window,frames,document:c.context.document,listeners,advance:time=>{for(const [id,fn] of [...frames]){frames.delete(id);fn(time)}}};
+  return {card,node,focused:()=>focused,window:c.context.window,frames,document:c.context.document,listeners,advance:time=>{for(const [id,fn] of [...frames]){frames.delete(id);fn(time)}}};
 }
 
 test('saving dates persists a named trip and selecting it filters device queries', async () => {
@@ -297,6 +298,8 @@ test('trip timeline scrubs to the last known fix without interpolating gaps or f
   const points=[{time:100,lat:-37,lon:145},{time:200,lat:-38,lon:146}];
   card.tracks=[{d:card.allDevices[0],points},{d:card.allDevices[1],points:[{time:250,lat:-39,lon:147}]}];
   card.playbackRange={start:50,end:300};card.renderPlayback();
+  assert.equal(node('.playback').hidden,true,'the timeline stays closed until asked for');
+  node('.timeline-toggle').onclick();
   assert.equal(node('.playback').hidden,false);
   assert.equal(node('.playback-slider').disabled,true);
   node('.playback-enabled').checked=true;card.togglePlayback();
@@ -565,4 +568,59 @@ test('playback moves existing markers and shows only vehicles with an earlier fi
   assert.equal(card.markerLayer.layers.size,1);
   card.playbackTime=null;card.drawMarkers();
   sameJSON(made.markers[0].latlng,[-38,146]);
+});
+
+test('every view names and colours a vehicle the same way: card setting, then SPOT name, then messenger ID', async () => {
+  const {card,node}=leafletCard({devices:{'a:car':{name:'Ute',color:'#123456'}}});
+  card.devices=[{entry_id:'a',device:'car',name:'Bluey'},{entry_id:'b',device:'trailer',name:'Camper'},{entry_id:'c',device:'0-123'}];
+  card.allDevices=card.devices;
+  const names=['Ute','Camper','0-123'],colours=['#123456','#e65100','#388e3c'];
+  card.legend();
+  const legend=node('.legend').children;
+  sameJSON(legend.map(label=>label.children[2].textContent),names);
+  sameJSON(legend.map(label=>label.children[1].style.background),colours);
+  card.renderTripVehicles(null);
+  sameJSON(node('.trip-vehicles').children.map(label=>label.children[1].textContent.split(' (')[0]),names);
+  card.trips=[{id:'trip',name:'Camping'}];node('.trip-select').value='trip';
+  card.tracks=card.devices.map(d=>({d,points:[{time:100,lat:-37,lon:145}]}));
+  card.playbackRange={start:0,end:200};card.playbackTime=150;card.renderPlayback();
+  sameJSON(node('.playback-positions').children.map(row=>row.textContent.split(' — ')[0]),names);
+  await card.ensureMap();
+  sameJSON([...card.markerLayer.layers].map(marker=>marker.options.title),names);
+  sameJSON([...card.trackLayer.layers].map(line=>line.options.color),colours);
+});
+
+test('the timeline floats over the map: a trip enables it, and close, Escape or leaving the trip hides it', () => {
+  const {card,node,focused}=tripCard();
+  card.trips=[{id:'trip',name:'Camping'}];card.renderPlayback();
+  assert.equal(node('.timeline-toggle').disabled,true,'no trip, no timeline');
+  node('.trip-select').value='trip';card.syncTripControls();
+  assert.equal(node('.timeline-toggle').disabled,false);
+  assert.equal(node('.playback').hidden,true);
+  node('.timeline-toggle').onclick();
+  assert.equal(node('.playback').hidden,false);
+  assert.equal(node('.timeline-toggle').attrs['aria-expanded'],'true');
+  assert.equal(focused(),'.playback-enabled');
+  node('.playback-close').onclick();
+  assert.equal(node('.playback').hidden,true);
+  assert.equal(node('.timeline-toggle').attrs['aria-expanded'],'false');
+  assert.equal(focused(),'.timeline-toggle');
+  node('.timeline-toggle').onclick();
+  node('.playback').listeners.keydown({key:'Enter'});
+  assert.equal(node('.playback').hidden,false);
+  node('.playback').listeners.keydown({key:'Escape'});
+  assert.equal(node('.playback').hidden,true);
+  node('.timeline-toggle').onclick();
+  node('.trip-select').value='';card.syncTripControls();
+  assert.equal(node('.playback').hidden,true);
+  assert.equal(node('.timeline-toggle').disabled,true);
+  node('.trip-select').value='trip';card.syncTripControls();
+  assert.equal(node('.playback').hidden,true,'returning to a trip does not reopen it');
+});
+
+test('the card has no title of its own and the timeline sits over the map, not above it', () => {
+  const header=src.slice(src.indexOf('<div class="wrap">'),src.indexOf('<dialog'));
+  assert.doesNotMatch(header,/<h3/);
+  assert.doesNotMatch(src,/config\.title/);
+  assert.match(src,/<div class="map-area"><div class="map"><\/div><section class="playback"/);
 });

@@ -30,7 +30,7 @@ _Reference snapshot: 12 October 2026, based on the latest Device Management UI Z
 ## Device options behavior
 
 Trip playback supports client-side scrubbing and automatic animation of loaded history. A saved
-trip enables the timeline, whose bounds are the selected inclusive date period.
+trip enables the **Timeline** button, which opens the timeline as a panel absolutely positioned over the map (a sibling of the Leaflet container, so its events never reach the map) and never resizes the map; its bounds are the selected inclusive date period. The card renders no title; filters, trip controls and the vehicle legend share one wrapping row.
 Binary search selects each vehicle's last fix at/before the cursor, without
 interpolation; there is no marker before that vehicle's first loaded fix. Full
 routes stay visible, and per-vehicle timestamps identify stale positions. Turning
