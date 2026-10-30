@@ -15,16 +15,26 @@ def normalize_version(value):
 
 
 def next_release_version(current, tags):
-    """Increment the highest stable version to avoid reusing an existing tag."""
-    versions = [tuple(map(int, normalize_version(current).split(".")))]
+    """Release a manifest version newer than every tag as it is; otherwise the patch after the highest.
+
+    Setting the manifest to, say, 0.6.0 by hand therefore publishes 0.6.0, while ordinary merges keep
+    incrementing the patch without reusing an existing tag.
+    """
+    def parse(value):
+        return tuple(map(int, normalize_version(value).split(".")))
+
+    current = parse(current)
+    released = []
     for tag in tags:
         if not tag.startswith("v"):
             continue
         try:
-            versions.append(tuple(map(int, normalize_version(tag).split("."))))
+            released.append(parse(tag))
         except ValueError:
             continue
-    major, minor, patch = max(versions)
+    if not released or current > max(released):
+        return ".".join(map(str, current))
+    major, minor, patch = max(released)
     return f"{major}.{minor}.{patch + 1}"
 
 
