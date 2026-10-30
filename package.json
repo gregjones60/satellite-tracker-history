@@ -1,7 +1,7 @@
 {
   "name": "satellite-tracker-history-tests",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.7.1",
   "scripts": {
     "test": "node --test tests-js/*.test.cjs",
     "check": "node --check custom_components/satellite_tracker_history/www/satellite-tracker-history-card.js"

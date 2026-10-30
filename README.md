@@ -2,7 +2,7 @@
   <img src="branding/logo.png" alt="Satellite Tracker History">
 </p>
 
-# Satellite Tracker History v0.7.0 — SPOT and Garmin trackers + bundled card
+# Satellite Tracker History v0.7.1 — SPOT and Garmin trackers + bundled card
 
 Each **vehicle** is a separate integration configuration entry: one tracker, which is either a messenger in a **SPOT shared feed** or a device in a **Garmin inReach MapShare**. To add a vehicle, go to **Settings → Devices & services → Add integration → Satellite Tracker History**, choose the service, enter the feed (and password if needed), then choose the vehicle's device. The list shows devices the feed has reported recently or the archive holds; if the feed has been quiet, type the device's ID (the SPOT messenger ID, or the Garmin IMEI). Add the same feed again for each other device on it. Vehicles that share a feed are polled together, with one request per feed.
 
@@ -101,7 +101,7 @@ Copy `custom_components/satellite_tracker_history` to `/config/custom_components
 
 For HACS, publish this repository with `custom_components/satellite_tracker_history` at its root, add the GitHub repository URL to HACS as a **custom integration repository**, install, and restart Home Assistant. HACS installation and update do not automatically create a GitHub repository.
 
-The card asset is available at `/satellite_tracker_history/satellite-tracker-history-card.js?v=0.7.0` once Home Assistant has restarted. The version is read from the installed integration manifest. Home Assistant's frontend loads the bundled script automatically. If you previously registered `/local/spot-trace-history-card.js` manually, remove that old dashboard resource to avoid loading two card versions.
+The card asset is available at `/satellite_tracker_history/satellite-tracker-history-card.js?v=0.7.1` once Home Assistant has restarted. The version is read from the installed integration manifest. Home Assistant's frontend loads the bundled script automatically. If you previously registered `/local/spot-trace-history-card.js` manually, remove that old dashboard resource to avoid loading two card versions.
 
 ## Backups
 
