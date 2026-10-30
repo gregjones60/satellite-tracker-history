@@ -8,7 +8,7 @@ from .store import async_get_store
 DEVICES = vol.Any(None, [vol.Schema({vol.Required('feed_id'): cv.string, vol.Required('device'): cv.string})])
 
 
-@websocket_api.websocket_command({vol.Required('type'): 'spot_trace_history/trips'})
+@websocket_api.websocket_command({vol.Required('type'): 'satellite_tracker_history/trips'})
 @websocket_api.async_response
 async def ws_trips(hass, connection, msg):
     store = async_get_store(hass)
@@ -17,7 +17,7 @@ async def ws_trips(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
-    vol.Required('type'): 'spot_trace_history/create_trip',
+    vol.Required('type'): 'satellite_tracker_history/create_trip',
     vol.Required('name'): cv.string,
     vol.Required('start_date'): cv.string,
     vol.Required('end_date'): cv.string,
@@ -35,7 +35,7 @@ async def ws_create_trip(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
-    vol.Required('type'): 'spot_trace_history/update_trip',
+    vol.Required('type'): 'satellite_tracker_history/update_trip',
     vol.Required('trip_id'): cv.string,
     vol.Required('name'): cv.string,
     vol.Required('start_date'): cv.string,
@@ -58,7 +58,7 @@ async def ws_update_trip(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
-    vol.Required('type'): 'spot_trace_history/delete_trip',
+    vol.Required('type'): 'satellite_tracker_history/delete_trip',
     vol.Required('trip_id'): cv.string,
 })
 @websocket_api.async_response

@@ -1,4 +1,4 @@
-"""SPOT Trace History integration."""
+"""Satellite Tracker History integration."""
 from pathlib import Path
 import voluptuous as vol
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
@@ -7,13 +7,16 @@ from homeassistant.loader import async_get_integration
 from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components import websocket_api
-from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
+from homeassistant.helpers import (config_validation as cv, device_registry as dr, entity_registry as er,
+                                   issue_registry as ir)
+from homeassistant.helpers.start import async_at_started
 from .coordinator import SpotCoordinator, loaded_coordinator, loaded_coordinators
 from .vehicle import archive_feed, tracker_unique_id, vehicle_name, vehicle_unique_id
-from .store import async_get_store
+from .store import async_get_store, move_legacy_archive
 from .import_actions import register_import_actions
 from .trips import ws_trips, ws_create_trip, ws_update_trip, ws_delete_trip
-from .const import CONF_DEVICE, CONF_DEVICES, CONF_ENABLED, CONF_FEED_ID, CONF_ICON, CONF_NAME, DOMAIN, PROVIDER_SPOT
+from .const import (CONF_DEVICE, CONF_DEVICES, CONF_ENABLED, CONF_FEED_ID, CONF_ICON, CONF_NAME, DOMAIN,
+                    LEGACY_DOMAIN, PROVIDER_SPOT)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -24,19 +27,53 @@ SpotConfigEntry = ConfigEntry[SpotCoordinator]
 
 async def async_setup(hass, config):
     """Serve the bundled Lovelace card and register domain-wide actions and commands."""
+    # Before anything opens the archive, so it is found under its new name.
+    await hass.async_add_executor_job(move_legacy_archive, hass.config.path())
     www = Path(__file__).parent / "www"
     integration = await async_get_integration(hass, DOMAIN)
-    url = f"/spot_trace_history/spot-trace-history-card.js?v={integration.version}"
+    url = f"/satellite_tracker_history/satellite-tracker-history-card.js?v={integration.version}"
     await hass.http.async_register_static_paths([
-        StaticPathConfig("/spot_trace_history/spot-trace-history-card.js", str(www / "spot-trace-history-card.js"), False),
+        StaticPathConfig("/satellite_tracker_history/satellite-tracker-history-card.js", str(www / "satellite-tracker-history-card.js"), False),
         # The card requests the bundled Leaflet with its version in the query, so it can be cached.
-        StaticPathConfig("/spot_trace_history/leaflet", str(www / "leaflet"), True),
+        StaticPathConfig("/satellite_tracker_history/leaflet", str(www / "leaflet"), True),
     ])
     frontend.add_extra_js_url(hass, url)
     register_import_actions(hass, loaded_coordinators)
     for command in (ws_devices, ws_track, ws_trips, ws_create_trip, ws_update_trip, ws_delete_trip):
         websocket_api.async_register_command(hass, command)
+
+    # Once every integration has set up, so a still-installed old integration can be detected.
+    # (Taking over during this setup would also wait on it: new entries set up the domain.)
+    async_at_started(hass, _async_take_over_legacy)
     return True
+
+
+async def _async_take_over_legacy(hass):
+    """Recreate every "SPOT Trace History" entry under this domain, then remove the old entry.
+
+    Each new vehicle entry moves its tracker entity and device from the old domain when it sets up.
+    """
+    legacy = hass.config_entries.async_entries(LEGACY_DOMAIN)
+    if not legacy:
+        return
+    if LEGACY_DOMAIN in hass.config.components:
+        # Its trackers are loaded, so they cannot be moved, and both would poll the same feeds.
+        ir.async_create_issue(hass, DOMAIN, 'legacy_installed', is_fixable=False,
+                              severity=ir.IssueSeverity.ERROR, translation_key='legacy_installed')
+        return
+    ir.async_delete_issue(hass, DOMAIN, 'legacy_installed')
+    for old in legacy:
+        if old.version == 1:
+            vehicles = await _async_feed_vehicles(hass, old)
+        else:
+            vehicles = [{'data': dict(old.data), 'options': dict(old.options), 'title': old.title}]
+        for vehicle in vehicles:
+            if vehicle['data'].get(CONF_DEVICE) is None:
+                continue
+            # Setting up the new entry moves the tracker and device, before the old entry's removal
+            # would delete whatever it still owns.
+            await hass.config_entries.flow.async_init(DOMAIN, context={'source': SOURCE_IMPORT}, data=vehicle)
+        await hass.config_entries.async_remove(old.entry_id)
 
 
 async def async_reload_entry(hass, entry):
@@ -55,6 +92,23 @@ async def async_migrate_entry(hass, entry: SpotConfigEntry):
 
 async def _async_split_feed_entry(hass, entry):
     """Keep one messenger on this entry and give every other one its own entry; no history moves."""
+    first, *others = await _async_feed_vehicles(hass, entry) or [None]
+    if first is None:
+        # Nothing was ever received or configured; setup explains how to add the vehicle.
+        hass.config_entries.async_update_entry(entry, version=2, data={**entry.data, CONF_DEVICE: None}, options={})
+        return
+    hass.config_entries.async_update_entry(
+        entry, version=2, unique_id=vehicle_unique_id(PROVIDER_SPOT, entry.data[CONF_FEED_ID],
+                                                      first['data'][CONF_DEVICE]), **first)
+    for vehicle in others:
+        await hass.config_entries.flow.async_init(DOMAIN, context={'source': SOURCE_IMPORT}, data=vehicle)
+
+
+async def _async_feed_vehicles(hass, entry):
+    """The vehicles of a version 1 SPOT feed entry: one per messenger in the archive or its settings.
+
+    The first is an enabled messenger that already has a tracker, where there is one.
+    """
     feed = entry.data[CONF_FEED_ID]
     archived = await hass.async_add_executor_job(async_get_store(hass).list_devices, feed)
     names = {device['device']: device['name'] for device in archived}
@@ -74,30 +128,30 @@ async def _async_split_feed_entry(hass, entry):
         title = options.get(CONF_NAME) or names.get(device) or device
         return {'data': {**entry.data, CONF_DEVICE: device}, 'options': options, 'title': title}
 
-    if not messengers:
-        # Nothing was ever received or configured; setup explains how to add the vehicle.
-        hass.config_entries.async_update_entry(entry, version=2, data={**entry.data, CONF_DEVICE: None}, options={})
-        return
-    first, *others = messengers
-    hass.config_entries.async_update_entry(entry, version=2, unique_id=vehicle_unique_id(PROVIDER_SPOT, feed, first),
-                                           **vehicle(first))
-    for device in others:
-        await hass.config_entries.flow.async_init(DOMAIN, context={'source': SOURCE_IMPORT}, data=vehicle(device))
+    return [vehicle(device) for device in messengers]
 
 
 def _adopt_registry_entries(hass, entry):
-    """Move this vehicle's device from the feed entry it was split from.
+    """Move this vehicle's device from the feed entry it was split from, or from the old domain.
 
-    The tracker entity needs no help: registering its unique ID moves it to this entry.
+    A tracker entity from a split needs no help: registering its unique ID moves it to this entry.
+    One from the old domain belongs to another integration, so its platform is changed here, before
+    the tracker platform loads and would otherwise create a second entity.
     """
     unique_id = tracker_unique_id(archive_feed(entry.data), entry.data[CONF_DEVICE])
-    devices = dr.async_get(hass)
-    for other in hass.config_entries.async_entries(DOMAIN):
-        # Device identifiers are only unique within a config entry, so look in each one.
-        device = None if other.entry_id == entry.entry_id else (
-            devices.async_get_device_by_identifier((DOMAIN, unique_id), other.entry_id))
-        if device is not None:
-            devices.async_update_device(device.id, new_config_entry_id=entry.entry_id)
+    devices, entities = dr.async_get(hass), er.async_get(hass)
+    # The entity first: moving a device to another entry deletes the entities its old entry still owns.
+    legacy = entities.async_get_entity_id('device_tracker', LEGACY_DOMAIN, unique_id)
+    if legacy is not None:
+        entities.async_update_entity_platform(legacy, DOMAIN, new_config_entry_id=entry.entry_id)
+    for domain in (DOMAIN, LEGACY_DOMAIN):
+        for other in hass.config_entries.async_entries(domain):
+            # Device identifiers are only unique within a config entry, so look in each one.
+            device = None if other.entry_id == entry.entry_id else (
+                devices.async_get_device_by_identifier((domain, unique_id), other.entry_id))
+            if device is not None:
+                devices.async_update_device(device.id, new_config_entry_id=entry.entry_id,
+                                            new_identifiers={(DOMAIN, unique_id)})
 
 
 async def async_setup_entry(hass, entry: SpotConfigEntry):
@@ -122,7 +176,7 @@ async def async_remove_config_entry_device(hass, entry: SpotConfigEntry, device_
     return (DOMAIN, own) not in device_entry.identifiers
 
 
-@websocket_api.websocket_command({vol.Required('type'): 'spot_trace_history/devices'})
+@websocket_api.websocket_command({vol.Required('type'): 'satellite_tracker_history/devices'})
 @websocket_api.async_response
 async def ws_devices(hass, connection, msg):
     """Return every loaded vehicle that has archived positions."""
@@ -138,7 +192,7 @@ async def ws_devices(hass, connection, msg):
 
 
 @websocket_api.websocket_command({
-    vol.Required('type'): 'spot_trace_history/track',
+    vol.Required('type'): 'satellite_tracker_history/track',
     vol.Required('entry_id'): cv.string,
     vol.Required('device'): cv.string,
     vol.Required('start'): vol.Coerce(int),

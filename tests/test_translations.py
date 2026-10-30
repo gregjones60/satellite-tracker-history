@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1] / "custom_components/spot_trace_history"
+ROOT = Path(__file__).resolve().parents[1] / "custom_components/satellite_tracker_history"
 STRINGS = json.loads((ROOT / "translations/en.json").read_text())
 
 
@@ -49,8 +49,11 @@ def test_flow_steps_errors_and_aborts_are_translated():
     assert {"already_configured", "reconfigure_successful"} <= set(STRINGS["config"]["abort"])
 
 
-def test_exception_keys_are_translated():
+def test_exception_and_issue_keys_are_translated():
     for module in ("import_actions.py", "__init__.py"):
         source = (ROOT / module).read_text()
-        keys = set(re.findall(r"translation_key='(\w+)'", source))
-        assert keys and keys <= set(STRINGS["exceptions"]), module
+        issues = set(re.findall(r"async_create_issue\([^)]*translation_key='(\w+)'", source, re.S))
+        exceptions = set(re.findall(r"translation_key='(\w+)'", source)) - issues
+        assert exceptions and exceptions <= set(STRINGS["exceptions"]), module
+        assert issues <= set(STRINGS.get("issues", {})), module
+    assert {"title", "description"} <= set(STRINGS["issues"]["legacy_installed"])

@@ -1,4 +1,4 @@
-# Roadmap — SPOT Trace History
+# Roadmap — Satellite Tracker History
 
 _Status as of 12 October 2026. Proposed priorities, not committed release dates._
 

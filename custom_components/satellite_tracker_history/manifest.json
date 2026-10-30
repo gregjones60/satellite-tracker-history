@@ -1,0 +1,20 @@
+{
+  "domain": "satellite_tracker_history",
+  "name": "Satellite Tracker History",
+  "codeowners": [
+    "@gregjones60"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http",
+    "persistent_notification",
+    "websocket_api"
+  ],
+  "documentation": "https://github.com/gregjones60/satellite-tracker-history",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/gregjones60/satellite-tracker-history/issues",
+  "requirements": [],
+  "version": "0.7.0"
+}

@@ -1,8 +1,13 @@
-"""Constants for SPOT Trace History."""
+"""Constants for Satellite Tracker History."""
 
-DOMAIN = "spot_trace_history"
+DOMAIN = "satellite_tracker_history"
 INTERVAL = 300
-ARCHIVE_FILENAME = "spot_trace_history.sqlite"
+ARCHIVE_FILENAME = "satellite_tracker_history.sqlite"
+
+# Up to v0.6.1 this integration was "SPOT Trace History"; its entries, registry items and
+# archive are taken over once on the first start under the new name.
+LEGACY_DOMAIN = "spot_trace_history"
+LEGACY_ARCHIVE_FILENAME = "spot_trace_history.sqlite"
 
 # Each config entry is one vehicle: the tracker `device` in the feed `feed_id` of a `provider`.
 # SPOT: a shared feed ID and messenger ID. Garmin: a MapShare name and the device's IMEI.

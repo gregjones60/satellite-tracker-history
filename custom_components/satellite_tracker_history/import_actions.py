@@ -28,13 +28,13 @@ def register_import_actions(hass, coordinators):
                 result = await importer(hass, entries, source, call.data)
             except Exception as exc:
                 persistent_notification.async_create(hass, 'The import did not finish. See the action error for details.',
-                    title='SPOT history import failed', notification_id=f'{DOMAIN}_import')
+                    title='History import failed', notification_id=f'{DOMAIN}_import')
                 if isinstance(exc, ValueError):
                     raise HomeAssistantError(str(exc), translation_domain=DOMAIN, translation_key='import_failed',
                                              translation_placeholders={'error': str(exc)}) from exc
                 raise
             persistent_notification.async_create(hass, import_message(result),
-                title='SPOT history import complete', notification_id=f'{DOMAIN}_import')
+                title='History import complete', notification_id=f'{DOMAIN}_import')
             _LOGGER.info('History import: %d added, %d duplicates, %d skipped',
                          result['added'], result['duplicates'], result['skipped'])
             if call.return_response:

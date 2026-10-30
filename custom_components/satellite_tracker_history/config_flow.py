@@ -1,4 +1,4 @@
-"""Config and options flows for SPOT Trace History."""
+"""Config and options flows for Satellite Tracker History."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -145,9 +145,9 @@ class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_import(self, import_data):
-        """Create a vehicle split from a version 1 feed entry during migration."""
+        """Create a vehicle split from a version 1 feed entry, or taken over from the old domain."""
         feed_id, device = import_data["data"][CONF_FEED_ID], import_data["data"][CONF_DEVICE]
-        await self.async_set_unique_id(vehicle_unique_id(PROVIDER_SPOT, feed_id, device))
+        await self.async_set_unique_id(vehicle_unique_id(provider(import_data["data"]), feed_id, device))
         self._abort_if_unique_id_configured()
         return self.async_create_entry(title=import_data["title"], data=import_data["data"],
                                        options=import_data["options"])

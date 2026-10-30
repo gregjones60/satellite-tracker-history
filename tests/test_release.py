@@ -22,13 +22,13 @@ validator_spec.loader.exec_module(validator)
 
 @pytest.fixture
 def project(tmp_path):
-    source = tmp_path / "custom_components/spot_trace_history"
+    source = tmp_path / "custom_components/satellite_tracker_history"
     source.mkdir(parents=True)
-    (source / "manifest.json").write_text(json.dumps({"domain": "spot_trace_history", "version": "0.5.2"}))
+    (source / "manifest.json").write_text(json.dumps({"domain": "satellite_tracker_history", "version": "0.5.2"}))
     (tmp_path / "package.json").write_text(json.dumps({"version": "0.5.1", "private": True}))
     (tmp_path / "README.md").write_text(
-        '# SPOT Trace History v0.5.1 — history\n\n'
-        '/spot_trace_history/spot-trace-history-card.js?v=0.5.1\n\n'
+        '# Satellite Tracker History v0.5.1 — history\n\n'
+        '/satellite_tracker_history/satellite-tracker-history-card.js?v=0.5.1\n\n'
         '## Release notes 0.5.0\nPrevious release.\n'
     )
     (source / "__init__.py").write_text("# integration\n")
@@ -40,14 +40,14 @@ def project(tmp_path):
 @pytest.mark.parametrize("requested, expected", [(None, "0.5.2"), ("0.5.3", "0.5.3"), ("v1.0.0", "1.0.0")])
 def test_build_synchronizes_metadata_and_archive(project, requested, expected):
     archive = builder.build_release(project, requested)
-    assert archive.name == f"spot_trace_history-{expected}.zip"
+    assert archive.name == f"satellite_tracker_history-{expected}.zip"
     package = json.loads((project / "package.json").read_text())
     assert package == {"version": expected, "private": True}
-    manifest = json.loads((project / "custom_components/spot_trace_history/manifest.json").read_text())
-    assert manifest == {"domain": "spot_trace_history", "version": expected}
+    manifest = json.loads((project / "custom_components/satellite_tracker_history/manifest.json").read_text())
+    assert manifest == {"domain": "satellite_tracker_history", "version": expected}
     readme = (project / "README.md").read_text()
-    assert f"# SPOT Trace History v{expected} — history" in readme
-    assert f"/spot_trace_history/spot-trace-history-card.js?v={expected}" in readme
+    assert f"# Satellite Tracker History v{expected} — history" in readme
+    assert f"/satellite_tracker_history/satellite-tracker-history-card.js?v={expected}" in readme
     assert "## Release notes 0.5.0\nPrevious release." in readme
     with zipfile.ZipFile(archive) as z:
         assert json.loads(z.read("manifest.json")) == manifest
@@ -57,7 +57,7 @@ def test_build_synchronizes_metadata_and_archive(project, requested, expected):
 
 @pytest.mark.parametrize("invalid", ["e61df73", "v0.5", "../0.5.2", "01.5.2"])
 def test_invalid_release_version_does_not_change_project(project, invalid):
-    paths = [project / "package.json", project / "custom_components/spot_trace_history/manifest.json",
+    paths = [project / "package.json", project / "custom_components/satellite_tracker_history/manifest.json",
              project / "README.md"]
     before = [path.read_bytes() for path in paths]
     with pytest.raises(ValueError, match="Expected a version"):
@@ -83,9 +83,9 @@ def test_next_release_version(current, tags, expected):
 
 @pytest.fixture
 def packaged_project(project):
-    source = project/'custom_components/spot_trace_history/www'
+    source = project/'custom_components/satellite_tracker_history/www'
     source.mkdir()
-    card = Path(__file__).resolve().parents[1]/'custom_components/spot_trace_history/www/spot-trace-history-card.js'
+    card = Path(__file__).resolve().parents[1]/'custom_components/satellite_tracker_history/www/satellite-tracker-history-card.js'
     (source/card.name).write_bytes(card.read_bytes())
     return project
 
@@ -112,15 +112,15 @@ def test_validate_release_rejects_incorrect_archive_contents(packaged_project,pr
     archive = builder.build_release(packaged_project)
     def change(files):
         if problem == 'missing-card':
-            del files['www/spot-trace-history-card.js']
+            del files['www/satellite-tracker-history-card.js']
         elif problem == 'stale-card':
-            files['www/spot-trace-history-card.js'] = b'// old card'
+            files['www/satellite-tracker-history-card.js'] = b'// old card'
         elif problem == 'stale-backend':
             files['__init__.py'] = b'# old backend'
         elif problem == 'extra-file':
             files['debug.txt'] = b'unexpected'
         else:
-            files['manifest.json'] = b'{"domain":"spot_trace_history","version":"0.5.1"}'
+            files['manifest.json'] = b'{"domain":"satellite_tracker_history","version":"0.5.1"}'
     rewrite_archive(archive,change)
     with pytest.raises(ValueError,match='Release file list|differs from source|Packaged manifest'):
         validator.validate_release(packaged_project,archive)
@@ -128,7 +128,7 @@ def test_validate_release_rejects_incorrect_archive_contents(packaged_project,pr
 
 @pytest.mark.parametrize('source_change', ['missing-playback','missing-controls','missing-play-button','invalid-js'])
 def test_validate_release_rejects_broken_source_even_when_archive_matches(packaged_project,source_change):
-    card = packaged_project/'custom_components/spot_trace_history/www/spot-trace-history-card.js'
+    card = packaged_project/'custom_components/satellite_tracker_history/www/satellite-tracker-history-card.js'
     if source_change == 'missing-playback':
         card.write_text(card.read_text().replace('renderPlayback','oldRenderPlayback'))
     elif source_change == 'missing-controls':
@@ -146,7 +146,7 @@ def test_validate_release_rejects_duplicate_zip_entries(packaged_project):
     archive = builder.build_release(packaged_project)
     with zipfile.ZipFile(archive,'a') as z:
         with pytest.warns(UserWarning,match='Duplicate name'):
-            z.writestr('www/spot-trace-history-card.js','// duplicate')
+            z.writestr('www/satellite-tracker-history-card.js','// duplicate')
     with pytest.raises(ValueError,match='duplicate file entries'):
         validator.validate_release(packaged_project,archive)
 
@@ -166,7 +166,7 @@ def test_validate_release_checks_the_tagged_source_not_just_the_zip(packaged_pro
     subprocess.run(['git','add','.'],cwd=root,check=True)
     subprocess.run(['git','commit','-qm','Original source'],cwd=root,check=True)
     subprocess.run(['git','tag','v0.5.2'],cwd=root,check=True)
-    card=root/'custom_components/spot_trace_history/www/spot-trace-history-card.js'
+    card=root/'custom_components/satellite_tracker_history/www/satellite-tracker-history-card.js'
     card.write_text(card.read_text()+'\n// newer working copy\n')
     archive=builder.build_release(root)
     # Source and artifact match and playback works, but the tag is stale.
@@ -185,5 +185,5 @@ def test_successive_releases_increment_version_and_readme(project):
         current = builder.next_release_version(current, tags)
         assert current == expected
         builder.build_release(project, current)
-        assert f"# SPOT Trace History v{expected}" in (project / "README.md").read_text()
+        assert f"# Satellite Tracker History v{expected}" in (project / "README.md").read_text()
         tags.append(f"v{current}")

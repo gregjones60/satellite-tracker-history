@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from custom_components.spot_trace_history.api import SpotAPIError
-from custom_components.spot_trace_history.const import DOMAIN
+from custom_components.satellite_tracker_history.api import SpotAPIError
+from custom_components.satellite_tracker_history.const import DOMAIN
 
 
 @pytest.fixture
@@ -21,12 +21,12 @@ def module(monkeypatch):
     update.DataUpdateCoordinator = DataUpdateCoordinator
     update.UpdateFailed = type('UpdateFailed', (Exception,), {})
     monkeypatch.setitem(sys.modules, update.__name__, update)
-    import custom_components.spot_trace_history.api as api
-    import custom_components.spot_trace_history.garmin as garmin
+    import custom_components.satellite_tracker_history.api as api
+    import custom_components.satellite_tracker_history.garmin as garmin
     for client in (api, garmin):
         monkeypatch.setattr(client, 'async_get_clientsession', lambda hass: None)
-    path = Path(__file__).resolve().parents[1]/'custom_components/spot_trace_history/coordinator.py'
-    spec = importlib.util.spec_from_file_location('custom_components.spot_trace_history.coordinator', path)
+    path = Path(__file__).resolve().parents[1]/'custom_components/satellite_tracker_history/coordinator.py'
+    spec = importlib.util.spec_from_file_location('custom_components.satellite_tracker_history.coordinator', path)
     loaded = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(loaded)
     return loaded

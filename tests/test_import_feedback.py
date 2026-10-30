@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from custom_components.spot_trace_history.gpx import parse_gpx_report
-from custom_components.spot_trace_history.import_feedback import import_message
+from custom_components.satellite_tracker_history.gpx import parse_gpx_report
+from custom_components.satellite_tracker_history.import_feedback import import_message
 
 
 def test_gpx_report_counts_invalid_and_unnamed_points(tmp_path):
@@ -42,8 +42,8 @@ def actions(monkeypatch):
     cv.string = str
     for module in (components,notification,core,exceptions,cv):
         monkeypatch.setitem(sys.modules,module.__name__,module)
-    path = Path(__file__).resolve().parents[1]/'custom_components/spot_trace_history/import_actions.py'
-    spec = importlib.util.spec_from_file_location('custom_components.spot_trace_history.import_actions',path)
+    path = Path(__file__).resolve().parents[1]/'custom_components/satellite_tracker_history/import_actions.py'
+    spec = importlib.util.spec_from_file_location('custom_components.satellite_tracker_history.import_actions',path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -92,7 +92,7 @@ async def test_failed_import_replaces_success_notification(actions,tmp_path):
         await registry['import_gpx'](types.SimpleNamespace(data={'filename':'history.gpx'},return_response=True))
     assert caught.value.translation_key == 'import_failed'
     assert caught.value.translation_placeholders == {'error':'Cannot select a feed'}
-    assert actions.persistent_notification.async_create.call_args.kwargs['title'] == 'SPOT history import failed'
+    assert actions.persistent_notification.async_create.call_args.kwargs['title'] == 'History import failed'
 
 
 def test_empty_report_does_not_invent_date_range():

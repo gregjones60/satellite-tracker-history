@@ -5,9 +5,9 @@ from unittest.mock import Mock
 
 import pytest
 
-import custom_components.spot_trace_history.garmin as module
-from custom_components.spot_trace_history.api import TrackerAPIError
-from custom_components.spot_trace_history.garmin import (
+import custom_components.satellite_tracker_history.garmin as module
+from custom_components.satellite_tracker_history.api import TrackerAPIError
+from custom_components.satellite_tracker_history.garmin import (
     NOT_FOUND, REJECTED, GarminAPI, GarminAPIError, GarminFeedError, mapshare_name, parse_kml)
 
 SAMPLE = (Path(__file__).parent / 'fixtures/garmin_mapshare.kml').read_bytes()

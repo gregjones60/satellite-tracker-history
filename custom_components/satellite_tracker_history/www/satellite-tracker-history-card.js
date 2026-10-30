@@ -1,10 +1,12 @@
 (() => {
 // Leaflet is bundled with the integration and served next to this card.
-const LEAFLET_VERSION='1.9.4',LEAFLET_URL='/spot_trace_history/leaflet/';
-class SpotTraceHistoryCard extends HTMLElement {
+const LEAFLET_VERSION='1.9.4',LEAFLET_URL='/satellite_tracker_history/leaflet/';
+// The card was "spot-trace-history-card" before the integration was renamed; dashboards using it keep working.
+const CARD_TYPES=['custom:satellite-tracker-history-card','custom:spot-trace-history-card'];
+class SatelliteTrackerHistoryCard extends HTMLElement {
   static loadLeaflet(){return import(`${LEAFLET_URL}leaflet-src.esm.js?v=${LEAFLET_VERSION}`)}
   setConfig(config) {
-    if (!config || config.type !== 'custom:spot-trace-history-card') throw Error('Invalid card type');
+    if (!config || !CARD_TYPES.includes(config.type)) throw Error('Invalid card type');
     this.pausePlayback(false);
     this.cfg=config;
     this.tileUrl=config.tile_url || "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
@@ -67,7 +69,7 @@ class SpotTraceHistoryCard extends HTMLElement {
   }
   disconnectedCallback(){this.pausePlayback(false);document.removeEventListener?.('visibilitychange',this.visibilityHandler);this.resizeObserver?.disconnect()}
   ensureMap(){
-    this.mapReady??=SpotTraceHistoryCard.loadLeaflet().then(L=>{
+    this.mapReady??=SatelliteTrackerHistoryCard.loadLeaflet().then(L=>{
       this.L=L;
       // Fractional zoom steps let wheel and pinch gestures zoom smoothly instead of jumping a whole level,
       // and capping drag momentum keeps a quick flick to a few hundred pixels instead of across the world.
@@ -118,7 +120,7 @@ class SpotTraceHistoryCard extends HTMLElement {
   set hass(hass){this._hass=hass;if(!this.initialized){this.initialized=true;this.ensureMap();this.loadDevices()}}
   async loadDevices(){
     try {
-      this.allDevices=await this._hass.callWS({type:'spot_trace_history/devices'});
+      this.allDevices=await this._hass.callWS({type:'satellite_tracker_history/devices'});
       this.devices=this.allDevices;
       this.devices=this.devices.filter(d=>!this.cfg.entry_id || d.entry_id===this.cfg.entry_id);
       this.devices=this.devices.filter(d=>this.deviceSettings(d)?.enabled!==false);
@@ -128,7 +130,7 @@ class SpotTraceHistoryCard extends HTMLElement {
   }
   async loadTrips(selected=''){
     try {
-      this.trips=await this._hass.callWS({type:'spot_trace_history/trips'});
+      this.trips=await this._hass.callWS({type:'satellite_tracker_history/trips'});
       this.renderTrips(selected);
     }catch(e){this.status('Unable to load trips: '+e.message)}
   }
@@ -206,7 +208,7 @@ class SpotTraceHistoryCard extends HTMLElement {
     if(!trip||!window.confirm(`Delete trip "${trip.name}"? GPS records will be kept.`))return;
     const button=this.shadowRoot.querySelector('.delete-trip');button.disabled=true;
     try {
-      await this._hass.callWS({type:'spot_trace_history/delete_trip',trip_id:trip.id});
+      await this._hass.callWS({type:'satellite_tracker_history/delete_trip',trip_id:trip.id});
       this.trips=this.trips.filter(t=>t.id!==trip.id);this.renderTrips();
       this.status('Trip deleted. GPS records are preserved; the displayed dates remain as custom dates.');
     }catch(e){this.status('Unable to delete trip: '+e.message)}
@@ -226,7 +228,7 @@ class SpotTraceHistoryCard extends HTMLElement {
     try {
       const devices=this.shadowRoot.querySelector('.trip-all-devices').checked?null:this.tripVehicleChecks.filter(item=>item.checkbox.checked).map(item=>item.reference);
       if(devices&& !devices.length){error.textContent='Select at least one vehicle or choose all vehicles';return}
-      const payload={type:this.editingTrip?'spot_trace_history/update_trip':'spot_trace_history/create_trip',name,start_date,end_date,devices};
+      const payload={type:this.editingTrip?'satellite_tracker_history/update_trip':'satellite_tracker_history/create_trip',name,start_date,end_date,devices};
       if(this.editingTrip)payload.trip_id=this.editingTrip;
       const trip=await this._hass.callWS(payload);
       this.editingTrip=null;
@@ -331,7 +333,7 @@ class SpotTraceHistoryCard extends HTMLElement {
     if(end-start>366*86400){this.status('Select a date range of up to 366 days');return}
     this.playbackTime=null;this.playbackRange=null;this.renderPlayback();
     this.status('Loading tracks…');
-    try {const tracks=await Promise.all(this.tripDevices().filter(d=>this.selected[d.entry_id+':'+d.device]).map(async d=>({d,points:await this._hass.callWS({type:'spot_trace_history/track',entry_id:d.entry_id,device:d.device,start:Math.floor(start),end:Math.floor(end),limit:50000})})));
+    try {const tracks=await Promise.all(this.tripDevices().filter(d=>this.selected[d.entry_id+':'+d.device]).map(async d=>({d,points:await this._hass.callWS({type:'satellite_tracker_history/track',entry_id:d.entry_id,device:d.device,start:Math.floor(start),end:Math.floor(end),limit:50000})})));
       if(request!==this.trackRequest)return;
       this.tracks=tracks;this.playbackRange={start:Math.floor(start),end:Math.floor(end)};this.renderPlayback();
       this.draw();this.fit();this.status(this.tracks.reduce((s,t)=>s+t.points.length,0)+' positions displayed. Scroll or pinch to zoom, drag to pan' + (this.tracks.some(t=>t.points.length>=50000)?'. A vehicle reached the 50,000-position limit; its timeline may be incomplete.':'.'));
@@ -377,11 +379,15 @@ class SpotTraceHistoryCard extends HTMLElement {
   }
   getCardSize(){return 6}
 }
+if (!customElements.get('satellite-tracker-history-card')) {
+  customElements.define('satellite-tracker-history-card',SatelliteTrackerHistoryCard);
+}
+// A second name needs its own class. Skipped if the old integration's card is still loaded.
 if (!customElements.get('spot-trace-history-card')) {
-  customElements.define('spot-trace-history-card',SpotTraceHistoryCard);
+  customElements.define('spot-trace-history-card',class extends SatelliteTrackerHistoryCard {});
 }
 window.customCards=window.customCards||[];
-if (!window.customCards.some(card=>card.type==='spot-trace-history-card')) {
-  window.customCards.push({type:'spot-trace-history-card',name:'SPOT Trace History',description:'Historical GPS tracks for independently configurable SPOT devices'});
+if (!window.customCards.some(card=>card.type==='satellite-tracker-history-card')) {
+  window.customCards.push({type:'satellite-tracker-history-card',name:'Satellite Tracker History',description:'Historical GPS tracks of SPOT and Garmin inReach vehicles'});
 }
 })();
