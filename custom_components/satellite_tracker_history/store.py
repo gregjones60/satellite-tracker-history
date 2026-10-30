@@ -11,20 +11,56 @@ from pathlib import Path
 from .const import ARCHIVE_FILENAME, DOMAIN, LEGACY_ARCHIVE_FILENAME
 
 
-def move_legacy_archive(config_dir):
-    """Rename the archive kept under the integration's old name, unless the new one already exists.
+SIDE_FILES = ('-wal', '-shm', '-journal')
 
-    Returns whether it moved. SQLite's side files move with it, so no committed data is left behind.
-    """
-    old, new = Path(config_dir) / LEGACY_ARCHIVE_FILENAME, Path(config_dir) / ARCHIVE_FILENAME
-    if new.exists() or not old.exists():
-        return False
-    for suffix in ('-wal', '-shm', '-journal'):
-        side = old.with_name(old.name + suffix)
+
+def _rename_with_side_files(source, target):
+    # SQLite's side files go first, so committed data never sits apart from its database.
+    for suffix in SIDE_FILES:
+        side = source.with_name(source.name + suffix)
         if side.exists():
-            os.replace(side, new.with_name(new.name + suffix))
-    os.replace(old, new)
-    return True
+            os.replace(side, target.with_name(target.name + suffix))
+    os.replace(source, target)
+
+
+def adopt_legacy_archive(path):
+    """Bring in the archive kept under the integration's old name, next to `path`.
+
+    If `path` does not exist yet the old archive is renamed to it. Otherwise (for example a setup form
+    opened the new archive first) the old archive's positions and trips are merged in, skipping any
+    already there, and the old file is kept as `<old name>.migrated`. Returns 'moved', 'merged' or None.
+    """
+    path = Path(path)
+    old = path.with_name(LEGACY_ARCHIVE_FILENAME)
+    if not old.exists():
+        return None
+    if not path.exists():
+        _rename_with_side_files(old, path)
+        return 'moved'
+    with closing(sqlite3.connect(path)) as db:
+        Store._create_schema(db)
+        db.execute('ATTACH DATABASE ? AS legacy', (str(old),))
+        try:
+            with db:
+                tables = {r[0] for r in db.execute("SELECT name FROM legacy.sqlite_master WHERE type='table'")}
+                if 'positions' in tables:
+                    db.execute('INSERT OR IGNORE INTO positions (feed,id,device,name,time,lat,lon,type) '
+                               'SELECT feed,id,device,name,time,lat,lon,type FROM legacy.positions')
+                if 'trips' in tables:
+                    columns = {r[1] for r in db.execute('PRAGMA legacy.table_info(trips)')}
+                    devices = 'devices' if 'devices' in columns else 'NULL'
+                    # A trip whose name is already used in the new archive keeps the new one.
+                    db.execute('INSERT OR IGNORE INTO trips (id,name,start_date,end_date,devices) '
+                               f'SELECT id,name,start_date,end_date,{devices} FROM legacy.trips')
+        finally:
+            db.execute('DETACH DATABASE legacy')
+    kept = old.with_name(old.name + '.migrated')
+    number = 1
+    while kept.exists():
+        number += 1
+        kept = old.with_name(f'{old.name}.migrated{number}')
+    _rename_with_side_files(old, kept)
+    return 'merged'
 
 
 def async_get_store(hass):
@@ -43,6 +79,9 @@ class Store:
     @contextmanager
     def connect(self):
         """Yield a connection inside one transaction, then close it."""
+        if not self._schema_ready and self.path.name == ARCHIVE_FILENAME:
+            # Whoever opens the archive first, polling or a setup form, brings in the old one.
+            adopt_legacy_archive(self.path)
         with closing(sqlite3.connect(self.path)) as db:
             if not self._schema_ready:
                 self._create_schema(db)

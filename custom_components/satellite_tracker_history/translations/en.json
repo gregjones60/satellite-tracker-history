@@ -40,6 +40,10 @@
         "data": {
           "password": "Feed password (optional)"
         }
+      },
+      "legacy": {
+        "title": "Bring over your SPOT Trace History vehicles",
+        "description": "Satellite Tracker History is the new name of SPOT Trace History, and {count} of its integration entries are still set up. Submit to bring them over: each vehicle keeps its settings, and its tracker keeps its entity ID, device, area and labels. The position archive and trips carry over too. The old entries are removed afterwards.\n\nTo add a new vehicle, open Add integration again once this is done."
       }
     },
     "error": {
@@ -53,7 +57,9 @@
     },
     "abort": {
       "already_configured": "This vehicle is already configured",
-      "reconfigure_successful": "The feed password was updated."
+      "reconfigure_successful": "The feed password was updated.",
+      "legacy_imported": "Brought over {count} vehicles from SPOT Trace History, with their trackers, history and trips.",
+      "legacy_installed": "The old SPOT Trace History integration is still installed. Remove it in HACS (or delete custom_components/spot_trace_history), restart Home Assistant, then add Satellite Tracker History again to bring your vehicles over."
     }
   },
   "options": {
