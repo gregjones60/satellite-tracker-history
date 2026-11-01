@@ -4,6 +4,7 @@ With requirements_test.txt installed (Python 3.14), the integration package is i
 and tests marked `ha` run against a live `hass` fixture. Without it, those tests are skipped and the
 remaining tests use the minimal stand-ins below.
 """
+
 import sys
 import types
 from pathlib import Path

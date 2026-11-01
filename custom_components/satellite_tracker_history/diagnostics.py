@@ -5,7 +5,8 @@ password, coordinates, and the entry title and unique ID (which name the vehicle
 The device ID (messenger ID or IMEI) and vehicle name identify the owner's hardware, so they are
 redacted too.
 """
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 from homeassistant.components.diagnostics import REDACTED, async_redact_data
 
@@ -15,13 +16,14 @@ TO_REDACT = {CONF_FEED_ID, CONF_PASSWORD, CONF_DEVICE, CONF_NAME, "lat", "lon", 
 
 
 def _utc(timestamp):
-    return datetime.fromtimestamp(timestamp, timezone.utc).isoformat() if timestamp else None
+    return datetime.fromtimestamp(timestamp, UTC).isoformat() if timestamp else None
 
 
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
-    summary = await hass.async_add_executor_job(coordinator.store.device_summary, coordinator.feed,
-                                                coordinator.device) or {}
+    summary = (
+        await hass.async_add_executor_job(coordinator.store.device_summary, coordinator.feed, coordinator.device) or {}
+    )
     last_exception = None
     if coordinator.last_exception:
         # API errors never contain the password; SPOT's error text can echo the feed ID.

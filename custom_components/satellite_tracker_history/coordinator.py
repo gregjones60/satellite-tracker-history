@@ -1,10 +1,11 @@
 """Poll tracker feeds into the shared archive, once per feed however many vehicles use it."""
+
 import asyncio
 import logging
 import sqlite3
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -25,7 +26,7 @@ BACKFILL = timedelta(days=30)
 def feed_api(hass, data):
     """The client for the service an entry's feed comes from."""
     api = GarminAPI if provider(data) == PROVIDER_GARMIN else SpotAPI
-    return api(hass, data[CONF_FEED_ID], data.get(CONF_PASSWORD, ''))
+    return api(hass, data[CONF_FEED_ID], data.get(CONF_PASSWORD, ""))
 
 
 class FeedPoller:
@@ -45,8 +46,7 @@ class FeedPoller:
             if self._fetched is None or time.monotonic() - self._fetched >= FRESH_SECONDS:
                 # Resume from the newest archived fix, so a gap while Home Assistant was down is filled.
                 last = await self.hass.async_add_executor_job(self.store.latest_time, self.feed)
-                since = (datetime.fromtimestamp(last, timezone.utc) if last
-                         else datetime.now(timezone.utc) - BACKFILL)
+                since = datetime.fromtimestamp(last, UTC) if last else datetime.now(UTC) - BACKFILL
                 points = await self.api.fetch(since)
                 await self.hass.async_add_executor_job(self.store.insert, self.feed, points)
                 self._fetched = time.monotonic()
@@ -56,7 +56,7 @@ class FeedPoller:
 def async_get_poller(hass, store, data):
     """The poller for an entry's feed. Keyed by password too, so a vehicle with a wrong
     password cannot poison a shared poll."""
-    key = (archive_feed(data), data.get(CONF_PASSWORD, ''))
+    key = (archive_feed(data), data.get(CONF_PASSWORD, ""))
     pollers = hass.data.setdefault(POLLERS, {})
     poller = pollers.get(key)
     if poller is None:
@@ -68,8 +68,7 @@ class SpotCoordinator(DataUpdateCoordinator):
     """One vehicle's latest position; data is the position dict, or None before its first fix."""
 
     def __init__(self, hass, entry, store):
-        super().__init__(hass, _LOGGER, config_entry=entry, name=DOMAIN,
-                         update_interval=timedelta(seconds=INTERVAL))
+        super().__init__(hass, _LOGGER, config_entry=entry, name=DOMAIN, update_interval=timedelta(seconds=INTERVAL))
         self.entry = entry
         self.store = store
         # The archive key: the SPOT feed ID, or the provider-prefixed feed of another service.

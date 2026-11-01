@@ -1,4 +1,5 @@
 """Check packaging metadata without requiring Home Assistant."""
+
 import json
 import re
 from pathlib import Path

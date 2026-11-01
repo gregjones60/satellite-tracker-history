@@ -1,15 +1,28 @@
 """Config and options flows for Satellite Tracker History."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .api import FEED_NOT_FOUND, SpotAPI, SpotFeedError
-from .const import (CONF_DEVICE, CONF_FEED_ID, CONF_ICON, CONF_MAPSHARE, CONF_NAME, CONF_PASSWORD, CONF_PROVIDER,
-                    DOMAIN, LEGACY_DOMAIN, PROVIDER_GARMIN, PROVIDER_SPOT)
+from .const import (
+    CONF_DEVICE,
+    CONF_FEED_ID,
+    CONF_ICON,
+    CONF_MAPSHARE,
+    CONF_NAME,
+    CONF_PASSWORD,
+    CONF_PROVIDER,
+    DOMAIN,
+    LEGACY_DOMAIN,
+    PROVIDER_GARMIN,
+    PROVIDER_SPOT,
+)
 from .coordinator import BACKFILL
 from .garmin import NOT_FOUND, GarminAPI, GarminFeedError, mapshare_name
 from .store import async_get_store
@@ -30,7 +43,7 @@ async def _async_validate(hass, provider_name, feed_id, password):
     try:
         if provider_name == PROVIDER_GARMIN:
             # A MapShare lists only its latest points unless asked for history.
-            points = await GarminAPI(hass, feed_id, password).fetch(datetime.now(timezone.utc) - BACKFILL)
+            points = await GarminAPI(hass, feed_id, password).fetch(datetime.now(UTC) - BACKFILL)
         else:
             points = await SpotAPI(hass, feed_id, password).page()
     except SpotFeedError as exc:
@@ -71,19 +84,22 @@ class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is None:
             count = len(self.hass.config_entries.async_entries(LEGACY_DOMAIN))
             return self.async_show_form(step_id="legacy", description_placeholders={"count": str(count)})
-        from . import async_take_over_legacy  # noqa: PLC0415 - the integration imports this module
+        from . import async_take_over_legacy
+
         created = await async_take_over_legacy(self.hass)
         return self.async_abort(reason="legacy_imported", description_placeholders={"count": str(created)})
 
     async def async_step_spot(self, user_input=None):
         """A SPOT shared feed, by its feed ID."""
-        return await self._async_feed_step(PROVIDER_SPOT, CONF_FEED_ID, user_input,
-                                           lambda value: value.strip() or None, "feed_not_found")
+        return await self._async_feed_step(
+            PROVIDER_SPOT, CONF_FEED_ID, user_input, lambda value: value.strip() or None, "feed_not_found"
+        )
 
     async def async_step_garmin(self, user_input=None):
         """A Garmin inReach MapShare, by its name or any MapShare link."""
-        return await self._async_feed_step(PROVIDER_GARMIN, CONF_MAPSHARE, user_input, mapshare_name,
-                                           "mapshare_invalid")
+        return await self._async_feed_step(
+            PROVIDER_GARMIN, CONF_MAPSHARE, user_input, mapshare_name, "mapshare_invalid"
+        )
 
     async def _async_feed_step(self, provider_name, field, user_input, parse, invalid):
         errors, placeholders = {}, {}
@@ -124,8 +140,11 @@ class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_vehicle(self, user_input=None):
         """Choose the device that is this vehicle's tracker, and optionally name it."""
         feed_id, archive = self._feed[CONF_FEED_ID], archive_feed(self._feed)
-        configured = {entry.data.get(CONF_DEVICE) for entry in self._async_current_entries(include_ignore=False)
-                      if archive_feed(entry.data) == archive}
+        configured = {
+            entry.data.get(CONF_DEVICE)
+            for entry in self._async_current_entries(include_ignore=False)
+            if archive_feed(entry.data) == archive
+        }
         available = {device: name for device, name in self._devices.items() if device not in configured}
         errors = {}
         if user_input is not None:
@@ -138,18 +157,22 @@ class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 options = _clean_options(user_input)
                 return self.async_create_entry(
                     title=options.get(CONF_NAME) or self._devices.get(device) or device,
-                    data={**self._feed, CONF_DEVICE: device}, options=options,
+                    data={**self._feed, CONF_DEVICE: device},
+                    options=options,
                 )
-        choices = [selector.SelectOptionDict(value=device, label=f"{name} [{device}]" if name != device else device)
-                   for device, name in available.items()]
+        choices = [
+            selector.SelectOptionDict(value=device, label=f"{name} [{device}]" if name != device else device)
+            for device, name in available.items()
+        ]
         return self.async_show_form(
             step_id="vehicle",
             data_schema=vol.Schema(
                 {
                     # A quiet feed lists nothing, so the device ID can also be typed.
                     vol.Required(CONF_DEVICE): selector.SelectSelector(
-                        selector.SelectSelectorConfig(options=choices, custom_value=True,
-                                                      mode=selector.SelectSelectorMode.DROPDOWN)
+                        selector.SelectSelectorConfig(
+                            options=choices, custom_value=True, mode=selector.SelectSelectorMode.DROPDOWN
+                        )
                     ),
                     vol.Optional(CONF_NAME, default=""): str,
                     vol.Optional(CONF_ICON, default=""): selector.IconSelector(),
@@ -164,8 +187,9 @@ class SpotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         feed_id, device = import_data["data"][CONF_FEED_ID], import_data["data"][CONF_DEVICE]
         await self.async_set_unique_id(vehicle_unique_id(provider(import_data["data"]), feed_id, device))
         self._abort_if_unique_id_configured()
-        return self.async_create_entry(title=import_data["title"], data=import_data["data"],
-                                       options=import_data["options"])
+        return self.async_create_entry(
+            title=import_data["title"], data=import_data["data"], options=import_data["options"]
+        )
 
     async def async_step_reconfigure(self, user_input=None):
         """Change the feed password; the feed and device key the archive and tracker, so they are fixed."""
@@ -200,7 +224,7 @@ class SpotOptionsFlow(config_entries.OptionsFlow):
         if timestamp is None:
             return "—"
         try:
-            return datetime.fromtimestamp(timestamp, timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            return datetime.fromtimestamp(timestamp, UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
         except (ValueError, OverflowError, OSError):
             return "—"
 
@@ -214,8 +238,10 @@ class SpotOptionsFlow(config_entries.OptionsFlow):
         latest = (await self.hass.async_add_executor_job(store.latest, archive)).get(device, {})
         default_name = summary.get("name") or device
         if user_input is not None:
-            options = {**{k: v for k, v in entry.options.items() if k not in (CONF_NAME, CONF_ICON)},
-                       **_clean_options(user_input)}
+            options = {
+                **{k: v for k, v in entry.options.items() if k not in (CONF_NAME, CONF_ICON)},
+                **_clean_options(user_input),
+            }
             self.hass.config_entries.async_update_entry(entry, title=options.get(CONF_NAME) or default_name)
             return self.async_create_entry(title="", data=options)
         return self.async_show_form(

@@ -1,5 +1,6 @@
 """The device tracker of each vehicle."""
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 from homeassistant.components.device_tracker import SourceType, TrackerEntity
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -47,8 +48,12 @@ class SpotTracker(CoordinatorEntity, TrackerEntity):
     @property
     def device_info(self):
         """Associate the tracker with a native HA device for area/label settings."""
-        return DeviceInfo(identifiers={(DOMAIN, self._attr_unique_id)}, name=vehicle_name(self.entry, self._position),
-                          manufacturer=MANUFACTURERS[self.provider], serial_number=self.device)
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._attr_unique_id)},
+            name=vehicle_name(self.entry, self._position),
+            manufacturer=MANUFACTURERS[self.provider],
+            serial_number=self.device,
+        )
 
     @property
     def latitude(self):
@@ -61,7 +66,7 @@ class SpotTracker(CoordinatorEntity, TrackerEntity):
     @property
     def extra_state_attributes(self):
         p = self._position
-        last = datetime.fromtimestamp(p["time"], timezone.utc).isoformat() if p.get("time") else None
+        last = datetime.fromtimestamp(p["time"], UTC).isoformat() if p.get("time") else None
         if self.provider == PROVIDER_SPOT:
             # SPOT's attribute names predate other services; automations may rely on them.
             return {"last_spot_message": last, "message_type": p.get("type"), "messenger_id": self.device}

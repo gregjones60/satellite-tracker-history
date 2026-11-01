@@ -4,6 +4,7 @@ SPOT vehicles keep the keys they had before other services were supported: the a
 SPOT feed ID itself. Other services prefix their feed with the provider, so a Garmin MapShare name can
 never collide with a SPOT feed ID in the shared archive.
 """
+
 from .const import CONF_DEVICE, CONF_FEED_ID, CONF_NAME, CONF_PROVIDER, PROVIDER_GARMIN, PROVIDER_SPOT
 
 MANUFACTURERS = {PROVIDER_SPOT: "SPOT", PROVIDER_GARMIN: "Garmin"}
