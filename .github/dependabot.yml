@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    # Stays at the minimum declared in hacs.json until that is raised by hand.
+    exclude-paths:
+      - requirements_test_min.txt
+    groups:
+      # The harness pins Home Assistant, whose frontend needs its matching package.
+      home-assistant:
+        patterns: ['*']
