@@ -39,8 +39,12 @@ release artifact; it does not verify the files installed in a running HA instanc
 or replace live browser testing.
 
 Create a GitHub repository with these files at the root, push to `main`,
-and enable GitHub Actions. CI runs on pushes to every branch and on pull requests.
+and enable GitHub Actions. CI runs on pushes to `main`, on pull requests and daily,
+against both the current Home Assistant (`requirements_test.txt`) and the minimum
+in `hacs.json` (`requirements_test_min.txt`), with hassfest and HACS validation.
 To publish, push changes to `main`; no manual patch-version bump is needed.
+A push that changes neither `custom_components/` nor `hacs.json` since the latest
+tag publishes nothing; it ships with the next release that does.
 After all CI jobs succeed for that push, the release workflow checks out the
 tested commit and increments the highest stable version found in the manifest
 or existing `vX.Y.Z` tags and GitHub releases, including drafts (for example,
