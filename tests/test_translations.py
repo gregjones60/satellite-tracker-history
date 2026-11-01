@@ -1,4 +1,5 @@
 """translations/en.json is the only source of UI text; check it covers what the code and services.yaml use."""
+
 import json
 import re
 from pathlib import Path
@@ -34,13 +35,19 @@ def test_flow_steps_errors_and_aborts_are_translated():
     used_errors = set(re.findall(r'(?:"base"|CONF_\w+)\]? ?[:=] ?"(\w+)"', source))
     used_aborts = set(re.findall(r'reason="(\w+)"', source))
     # The provider menu's options are steps too, named after the providers.
-    used_steps |= set(re.findall(r'async def async_step_(\w+)', source)) - {"import"}
+    used_steps |= set(re.findall(r"async def async_step_(\w+)", source)) - {"import"}
     assert used_steps == {"user", "legacy", "spot", "garmin", "vehicle", "reconfigure", "init"}
     assert used_steps - {"init"} <= set(STRINGS["config"]["step"])
     assert set(STRINGS["config"]["step"]["user"]["menu_options"]) == {"spot", "garmin"}
     assert set(STRINGS["options"]["step"]) == {"init"}
-    assert used_errors == {"cannot_connect", "feed_not_found", "feed_rejected", "no_messenger",
-                           "mapshare_not_found", "mapshare_rejected"}
+    assert used_errors == {
+        "cannot_connect",
+        "feed_not_found",
+        "feed_rejected",
+        "no_messenger",
+        "mapshare_not_found",
+        "mapshare_rejected",
+    }
     # Feed-ID parse failures are passed to the shared feed step by name.
     used_errors |= set(re.findall(r'"(\w+_invalid)"', source)) | {"feed_not_found"}
     assert "mapshare_invalid" in used_errors
@@ -52,8 +59,8 @@ def test_flow_steps_errors_and_aborts_are_translated():
 def test_exception_and_issue_keys_are_translated():
     for module in ("import_actions.py", "__init__.py"):
         source = (ROOT / module).read_text()
-        issues = set(re.findall(r"async_create_issue\([^)]*translation_key='(\w+)'", source, re.S))
-        exceptions = set(re.findall(r"translation_key='(\w+)'", source)) - issues
+        issues = set(re.findall(r"""async_create_issue\([^)]*translation_key=['"](\w+)['"]""", source, re.DOTALL))
+        exceptions = set(re.findall(r"""translation_key=['"](\w+)['"]""", source)) - issues
         assert exceptions and exceptions <= set(STRINGS["exceptions"]), module
         assert issues <= set(STRINGS.get("issues", {})), module
     assert {"title", "description"} <= set(STRINGS["issues"]["legacy_installed"])

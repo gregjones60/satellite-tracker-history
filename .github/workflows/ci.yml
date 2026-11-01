@@ -37,6 +37,14 @@ jobs:
         run: python scripts/build_release.py
       - name: Validate integration package and bundled card
         run: python scripts/validate_release.py
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: uvx ruff@0.17.3 check .
+      - run: uvx ruff@0.17.3 format --check .
   hassfest:
     runs-on: ubuntu-latest
     timeout-minutes: 10

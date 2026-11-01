@@ -1,5 +1,7 @@
 from pathlib import Path
+
 import pytest
+
 from custom_components.satellite_tracker_history.gpx import parse_gpx
 
 

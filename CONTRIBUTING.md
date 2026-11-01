@@ -7,6 +7,8 @@ then `bash scripts/check.sh`. With [uv](https://docs.astral.sh/uv/):
 `uv venv --python 3.14 .venv && uv pip install --python .venv -r requirements_test.txt`,
 then `PATH="$PWD/.venv/bin:$PATH" bash scripts/check.sh`.
 
+CI also runs `uvx ruff@0.17.3 check .` and `uvx ruff@0.17.3 format --check .`.
+
 `requirements_test.txt` pins `pytest-homeassistant-custom-component`, which pins a
 Home Assistant release. Tests marked `ha` (`tests/test_ha_integration.py`) run the
 integration in that real Home Assistant: entry setup/unload/reload, entities and

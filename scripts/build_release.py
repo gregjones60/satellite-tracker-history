@@ -1,4 +1,5 @@
 """Synchronize release versions and build a HACS integration archive."""
+
 import argparse
 import json
 import re
@@ -20,6 +21,7 @@ def next_release_version(current, tags):
     Setting the manifest to, say, 0.6.0 by hand therefore publishes 0.6.0, while ordinary merges keep
     incrementing the patch without reusing an existing tag.
     """
+
     def parse(value):
         return tuple(map(int, normalize_version(value).split(".")))
 
