@@ -22,7 +22,7 @@ jobs:
         requirements: [requirements_test.txt, requirements_test_min.txt]
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
         with:
           python-version: '3.14'
           activate-environment: true
@@ -42,7 +42,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
       - run: uvx ruff@0.17.3 check .
       - run: uvx ruff@0.17.3 format --check .
   hassfest:
