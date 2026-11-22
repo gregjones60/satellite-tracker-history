@@ -116,7 +116,7 @@ jobs:
           git tag "$RELEASE_TAG" "$RELEASE_SHA"
           git push origin "refs/tags/$RELEASE_TAG"
           python scripts/validate_release.py --version "${RELEASE_TAG#v}" --ref "$RELEASE_TAG"
-      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ steps.commit.outputs.sha }}
